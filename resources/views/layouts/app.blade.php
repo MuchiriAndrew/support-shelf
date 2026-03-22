@@ -19,6 +19,14 @@
         ['label' => 'Overview', 'route' => 'home'],
         ['label' => 'Ingestion', 'route' => 'admin.ingestion'],
     ];
+    $reverbApp = config('reverb.apps.apps.0');
+    $reverbOptions = $reverbApp['options'] ?? [];
+    $reverbRuntimeConfig = [
+        'appKey' => $reverbApp['key'] ?? null,
+        'host' => $reverbOptions['public_host'] ?? $reverbOptions['host'] ?? request()->getHost(),
+        'port' => $reverbOptions['public_port'] ?? $reverbOptions['port'] ?? 443,
+        'scheme' => $reverbOptions['public_scheme'] ?? $reverbOptions['scheme'] ?? 'https',
+    ];
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" data-realtime="{{ ($realtime ?? false) ? 'true' : 'false' }}">
@@ -29,6 +37,12 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title>{{ $metaTitle }}</title>
+
+        <script>
+            window.supportShelfConfig = @json([
+                'reverb' => $reverbRuntimeConfig,
+            ]);
+        </script>
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
