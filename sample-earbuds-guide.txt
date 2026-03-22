@@ -1,0 +1,9 @@
+AeroTune 90 Reset Guide
+
+To reset the AeroTune 90 earbuds, place both earbuds in the charging case.
+
+Press and hold the case pairing button for 15 seconds until the status light flashes amber and then white.
+
+Remove the earbuds from your device Bluetooth list before pairing again.
+
+If pairing still fails, fully charge the earbuds and repeat the reset process.
