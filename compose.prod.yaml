@@ -91,8 +91,6 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-    command:
-      - --default-authentication-plugin=mysql_native_password
     restart: unless-stopped
     volumes:
       - mysql_data:/var/lib/mysql
