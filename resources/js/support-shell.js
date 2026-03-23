@@ -17,29 +17,6 @@ const applyTheme = (theme) => {
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
 };
 
-const syncViewportHeight = () => {
-    const layoutHeight = window.innerHeight;
-    const viewport = window.visualViewport;
-    const visibleHeight = viewport?.height ?? layoutHeight;
-    const viewportTop = viewport?.offsetTop ?? 0;
-    const viewportBottomOffset = Math.max(0, layoutHeight - visibleHeight - viewportTop);
-
-    document.documentElement.style.setProperty('--app-height', `${Math.round(layoutHeight)}px`);
-    document.documentElement.style.setProperty('--visible-height', `${Math.round(visibleHeight)}px`);
-    document.documentElement.style.setProperty('--viewport-top-offset', `${Math.round(viewportTop)}px`);
-    document.documentElement.style.setProperty('--viewport-bottom-offset', `${Math.round(viewportBottomOffset)}px`);
-};
-
-const syncNavbarHeight = () => {
-    const navbar = document.querySelector('.shell-navbar');
-
-    if (! navbar) {
-        return;
-    }
-
-    document.documentElement.style.setProperty('--nav-height', `${Math.round(navbar.offsetHeight)}px`);
-};
-
 document.addEventListener('alpine:init', () => {
     window.Alpine.store('chrome', {
         pageKind: 'default',
@@ -47,37 +24,16 @@ document.addEventListener('alpine:init', () => {
         chatDrawerOpen: false,
         theme: resolveInitialTheme(),
         initialized: false,
-        viewportListenerBound: false,
 
         init(pageKind = 'default') {
             this.pageKind = pageKind;
 
             if (this.initialized) {
-                syncViewportHeight();
-                syncNavbarHeight();
                 return;
             }
 
             this.initialized = true;
             applyTheme(this.theme);
-            syncViewportHeight();
-            syncNavbarHeight();
-
-            if (! this.viewportListenerBound) {
-                const syncShellMetrics = () => {
-                    syncViewportHeight();
-                    syncNavbarHeight();
-                };
-
-                window.addEventListener('resize', syncShellMetrics, { passive: true });
-
-                if (window.visualViewport) {
-                    window.visualViewport.addEventListener('resize', syncShellMetrics, { passive: true });
-                    window.visualViewport.addEventListener('scroll', syncShellMetrics, { passive: true });
-                }
-
-                this.viewportListenerBound = true;
-            }
         },
 
         openMobileMenu() {
@@ -139,24 +95,15 @@ document.addEventListener('alpine:init', () => {
         error: null,
         isSending: false,
         activeChannelName: null,
-        composerObserver: null,
 
         init() {
             this.subscribeToActiveConversation();
             this.resizeComposer();
-            this.observeComposerFooter();
-            this.syncComposerOffset();
             this.scrollToBottom(false);
-            this.focusComposer();
         },
 
         destroy() {
             this.unsubscribeFromConversation();
-
-            if (this.composerObserver) {
-                this.composerObserver.disconnect();
-                this.composerObserver = null;
-            }
         },
 
         get canSend() {
@@ -439,39 +386,7 @@ document.addEventListener('alpine:init', () => {
 
                 composer.style.height = '0px';
                 composer.style.height = `${Math.min(composer.scrollHeight, 180)}px`;
-                this.syncComposerOffset();
             });
-        },
-
-        observeComposerFooter() {
-            if (! window.ResizeObserver || ! this.$refs.composerFooter) {
-                this.syncComposerOffset();
-
-                return;
-            }
-
-            this.composerObserver = new window.ResizeObserver(() => {
-                this.syncComposerOffset();
-            });
-
-            this.composerObserver.observe(this.$refs.composerFooter);
-        },
-
-        syncComposerOffset() {
-            requestAnimationFrame(() => {
-                const composerFooter = this.$refs.composerFooter;
-
-                if (! composerFooter) {
-                    return;
-                }
-
-                document.documentElement.style.setProperty('--chat-composer-height', `${Math.round(composerFooter.offsetHeight)}px`);
-            });
-        },
-
-        handleComposerFocus() {
-            this.syncComposerOffset();
-            this.scrollToBottom(false);
         },
 
         handleComposerKeydown(event) {

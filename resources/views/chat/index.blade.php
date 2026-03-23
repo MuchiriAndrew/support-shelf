@@ -186,7 +186,7 @@
                 </div>
             </div>
 
-            <footer x-ref="composerFooter" class="chat-fixed-composer">
+            <footer class="chat-fixed-composer">
                 <div class="chat-fixed-composer-inner">
                     <div class="mx-auto w-full max-w-3xl">
                         <p
@@ -206,7 +206,6 @@
                                 class="chat-composer-input"
                                 placeholder="Ask anything"
                                 @input="resizeComposer"
-                                @focus="handleComposerFocus"
                                 @keydown="handleComposerKeydown"
                             ></textarea>
 

@@ -19,11 +19,8 @@
 :root,
 :root[data-theme='dark'] {
     --app-height: 100dvh;
-    --visible-height: 100dvh;
     --nav-height: 4.5rem;
     --chat-composer-height: 6.5rem;
-    --viewport-top-offset: 0px;
-    --viewport-bottom-offset: 0px;
     --page-bg: #212121;
     --page-bg-strong: #171717;
     --surface: rgba(255, 255, 255, 0.05);
@@ -522,16 +519,16 @@
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
-    scroll-padding-bottom: calc(var(--chat-composer-height) + var(--viewport-bottom-offset) + env(safe-area-inset-bottom) + 1rem);
+    scroll-padding-bottom: calc(var(--chat-composer-height) + env(safe-area-inset-bottom) + 1rem);
 }
 
 .chat-message-inner {
-    padding-bottom: calc(var(--chat-composer-height) + var(--viewport-bottom-offset) + env(safe-area-inset-bottom) + 1rem);
+    padding-bottom: calc(var(--chat-composer-height) + env(safe-area-inset-bottom) + 1rem);
 }
 
 @media (min-width: 640px) {
     .chat-message-inner {
-        padding-bottom: 2.5rem;
+        padding-bottom: calc(var(--chat-composer-height) + 1rem);
     }
 }
 
@@ -872,7 +869,7 @@
     .chat-message-inner {
         padding-inline: 0.75rem;
         padding-top: 1rem;
-        padding-bottom: calc(var(--chat-composer-height) + var(--viewport-bottom-offset) + env(safe-area-inset-bottom) + 0.75rem);
+        padding-bottom: calc(var(--chat-composer-height) + env(safe-area-inset-bottom) + 0.75rem);
     }
 
     .chat-empty-state {
@@ -914,14 +911,12 @@
     }
 
     .chat-fixed-composer-inner {
-        padding: 0.7rem 0.75rem 0;
+        padding: 0.7rem 0.75rem calc(max(0.8rem, env(safe-area-inset-bottom)));
     }
 
     .chat-composer-shell {
         gap: 0.6rem;
         border-radius: 1.45rem;
-        border-color: color-mix(in srgb, var(--input-border) 80%, white 20%);
-        background: color-mix(in srgb, var(--composer-bg) 92%, var(--page-bg-strong));
         padding: 0.52rem 0.55rem 0.52rem 0.85rem;
         box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.4);
     }
@@ -938,21 +933,5 @@
         height: 2.55rem;
         width: 2.55rem;
         font-size: 1rem;
-    }
-
-    .chat-fixed-composer {
-        position: fixed;
-        right: 0;
-        bottom: calc(var(--viewport-bottom-offset) + env(safe-area-inset-bottom));
-        left: 0;
-        z-index: 35;
-        margin: 0;
-        background: linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--page-bg) 0%, transparent) 0%,
-            color-mix(in srgb, var(--page-bg) 58%, transparent) 32%,
-            color-mix(in srgb, var(--page-bg) 88%, transparent) 72%,
-            color-mix(in srgb, var(--page-bg) 96%, transparent) 100%
-        );
     }
 }
