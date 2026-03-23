@@ -70,7 +70,7 @@ RUN npm ci
 COPY resources ./resources
 COPY public ./public
 COPY vite.config.js ./
-COPY --from=vendor /var/www/html/vendor/filament/filament/resources ./vendor/filament/filament/resources
+COPY --from=vendor /var/www/html/vendor/filament ./vendor/filament
 
 RUN npm run build
 
