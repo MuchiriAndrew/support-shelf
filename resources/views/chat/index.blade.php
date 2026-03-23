@@ -188,7 +188,7 @@
 
             <footer x-ref="composerFooter" class="chat-fixed-composer">
                 <div class="chat-fixed-composer-inner">
-                    <div class="w-full">
+                    <div class="mx-auto w-full max-w-3xl">
                         <p
                             x-show="error"
                             x-cloak
