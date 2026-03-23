@@ -4,6 +4,7 @@ namespace App\Services\Documents;
 
 use App\Models\Source;
 use App\Services\Ingestion\SourceRegistryService;
+use App\Support\SupportActivityLog;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -33,13 +34,46 @@ class DocumentImportService
         $directory = trim((string) config('support-assistant.documents.path', 'source-documents'), '/');
         $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: 'txt');
         $filename = $this->makeFilename(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME), $extension);
-        $storagePath = Storage::disk($disk)->putFileAs($directory, $file, $filename);
 
-        if (! is_string($storagePath)) {
-            throw new RuntimeException('Unable to store the uploaded support document.');
+        SupportActivityLog::info('Support document upload started', [
+            'original_filename' => $file->getClientOriginalName(),
+            'extension' => $extension,
+            'size_bytes' => $file->getSize(),
+            'disk' => $disk,
+        ]);
+
+        try {
+            $storagePath = Storage::disk($disk)->putFileAs($directory, $file, $filename);
+
+            if (! is_string($storagePath)) {
+                throw new RuntimeException('Unable to store the uploaded support document.');
+            }
+
+            SupportActivityLog::debug('Support document upload stored', [
+                'original_filename' => $file->getClientOriginalName(),
+                'storage_disk' => $disk,
+                'storage_path' => $storagePath,
+            ]);
+
+            $result = $this->ingestStoredFile($disk, $storagePath, $extension, $attributes, $file->getClientOriginalName());
+
+            SupportActivityLog::info('Support document upload completed', [
+                'document_id' => $result['document']->id,
+                'document_title' => $result['document']->title,
+                'chunks_count' => $result['chunks_count'],
+                'storage_path' => $storagePath,
+            ]);
+
+            return $result;
+        } catch (\Throwable $exception) {
+            SupportActivityLog::error('Support document upload failed', [
+                'original_filename' => $file->getClientOriginalName(),
+                'disk' => $disk,
+                'exception' => $exception,
+            ]);
+
+            throw $exception;
         }
-
-        return $this->ingestStoredFile($disk, $storagePath, $extension, $attributes, $file->getClientOriginalName());
     }
 
     /**
@@ -51,19 +85,54 @@ class DocumentImportService
     public function importPath(string $path, array $attributes = []): array
     {
         if (! is_file($path)) {
+            SupportActivityLog::warning('Support document path import skipped because the file was missing', [
+                'path' => $path,
+            ]);
+
             throw new RuntimeException("The document path [{$path}] does not exist.");
         }
 
         $disk = (string) config('support-assistant.documents.disk', 'local');
         $directory = trim((string) config('support-assistant.documents.path', 'source-documents'), '/');
         $filename = $this->makeFilename(pathinfo($path, PATHINFO_FILENAME), strtolower(pathinfo($path, PATHINFO_EXTENSION) ?: 'txt'));
-        $storagePath = Storage::disk($disk)->putFileAs($directory, new File($path), $filename);
 
-        if (! is_string($storagePath)) {
-            throw new RuntimeException('Unable to copy the document into application storage.');
+        SupportActivityLog::info('Support document path import started', [
+            'path' => $path,
+            'disk' => $disk,
+        ]);
+
+        try {
+            $storagePath = Storage::disk($disk)->putFileAs($directory, new File($path), $filename);
+
+            if (! is_string($storagePath)) {
+                throw new RuntimeException('Unable to copy the document into application storage.');
+            }
+
+            SupportActivityLog::debug('Support document path copied into storage', [
+                'path' => $path,
+                'storage_disk' => $disk,
+                'storage_path' => $storagePath,
+            ]);
+
+            $result = $this->ingestStoredFile($disk, $storagePath, strtolower(pathinfo($storagePath, PATHINFO_EXTENSION)), $attributes, basename($path));
+
+            SupportActivityLog::info('Support document path import completed', [
+                'path' => $path,
+                'document_id' => $result['document']->id,
+                'document_title' => $result['document']->title,
+                'chunks_count' => $result['chunks_count'],
+            ]);
+
+            return $result;
+        } catch (\Throwable $exception) {
+            SupportActivityLog::error('Support document path import failed', [
+                'path' => $path,
+                'disk' => $disk,
+                'exception' => $exception,
+            ]);
+
+            throw $exception;
         }
-
-        return $this->ingestStoredFile($disk, $storagePath, strtolower(pathinfo($storagePath, PATHINFO_EXTENSION)), $attributes, basename($path));
     }
 
     /**
@@ -76,6 +145,15 @@ class DocumentImportService
         $documentType = (string) ($attributes['document_type'] ?? $this->guessDocumentType($extension));
         $title = $this->resolveTitle($attributes['title'] ?? null, $storagePath);
         $text = $this->extractText($disk, $storagePath, $extension);
+
+        SupportActivityLog::debug('Support document extracted into text', [
+            'original_filename' => $originalFilename,
+            'storage_disk' => $disk,
+            'storage_path' => $storagePath,
+            'document_type' => $documentType,
+            'source_id' => $source?->id,
+            'text_length' => mb_strlen($text),
+        ]);
 
         return $this->documentIngestionService->ingestText(
             $source,

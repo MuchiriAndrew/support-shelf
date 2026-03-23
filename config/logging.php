@@ -73,6 +73,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'supportshelf' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/supportshelf.log'),
+            'level' => env('SUPPORT_LOG_LEVEL', env('LOG_LEVEL', 'debug')),
+            'days' => env('SUPPORT_LOG_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

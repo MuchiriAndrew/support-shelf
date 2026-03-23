@@ -6,6 +6,7 @@ use App\Jobs\DeleteChunkVectorsJob;
 use App\Jobs\SyncDocumentVectorsJob;
 use App\Models\Document;
 use App\Models\Source;
+use App\Support\SupportActivityLog;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -26,9 +27,27 @@ class DocumentIngestionService
      */
     public function ingestText(?Source $source, string $title, string $documentType, string $content, array $attributes = []): array
     {
+        SupportActivityLog::info('Document ingestion started', [
+            'source_id' => $source?->id,
+            'source_name' => $source?->name,
+            'document_title' => $title,
+            'document_type' => $documentType,
+            'content_length' => mb_strlen($content),
+            'canonical_url' => $attributes['canonical_url'] ?? null,
+            'storage_disk' => $attributes['storage_disk'] ?? null,
+            'storage_path' => $attributes['storage_path'] ?? null,
+        ]);
+
         $normalizedText = $this->normalizer->normalize($content);
 
         if (mb_strlen($normalizedText) < 40) {
+            SupportActivityLog::warning('Document ingestion skipped because normalized content was too short', [
+                'source_id' => $source?->id,
+                'document_title' => $title,
+                'normalized_length' => mb_strlen($normalizedText),
+                'canonical_url' => $attributes['canonical_url'] ?? null,
+            ]);
+
             throw new InvalidArgumentException('The extracted document content was too short to store.');
         }
 
@@ -36,6 +55,7 @@ class DocumentIngestionService
         $tokenEstimate = $this->tokenEstimator->estimate($normalizedText);
         $document = $this->findExistingDocument($source, $attributes, $checksum);
         $vectorIdsToPrune = [];
+        $chunks = $this->chunkingService->chunk($normalizedText);
 
         $created = ! $document;
         $updated = true;
@@ -52,7 +72,19 @@ class DocumentIngestionService
 
             if ($this->shouldQueueVectorSync($document)) {
                 SyncDocumentVectorsJob::dispatch($document->id)->afterCommit();
+
+                SupportActivityLog::info('Vector sync queued for unchanged document', [
+                    'document_id' => $document->id,
+                    'document_title' => $document->title,
+                ]);
             }
+
+            SupportActivityLog::info('Document ingestion completed without content changes', [
+                'document_id' => $document->id,
+                'document_title' => $document->title,
+                'token_estimate' => $tokenEstimate,
+                'chunks_count' => $document->chunks()->count(),
+            ]);
 
             return [
                 'document' => $document->load('chunks'),
@@ -67,7 +99,7 @@ class DocumentIngestionService
             ? $document->chunks()->whereNotNull('vector_id')->pluck('vector_id')->filter()->values()->all()
             : [];
 
-        DB::transaction(function () use ($document, $source, $title, $documentType, $normalizedText, $checksum, $tokenEstimate, $attributes): void {
+        DB::transaction(function () use ($document, $source, $title, $documentType, $normalizedText, $checksum, $tokenEstimate, $attributes, $chunks): void {
             $document->fill([
                 'source_id' => $source?->id,
                 'title' => $title,
@@ -86,7 +118,7 @@ class DocumentIngestionService
 
             $document->chunks()->delete();
 
-            foreach ($this->chunkingService->chunk($normalizedText) as $index => $chunk) {
+            foreach ($chunks as $index => $chunk) {
                 $document->chunks()->create([
                     'chunk_index' => $index,
                     'content' => $chunk['content'],
@@ -101,11 +133,34 @@ class DocumentIngestionService
 
         if ($vectorIdsToPrune !== [] && $this->shouldQueueVectorPrune()) {
             DeleteChunkVectorsJob::dispatch($vectorIdsToPrune)->afterCommit();
+
+            SupportActivityLog::info('Stale vectors queued for deletion after document refresh', [
+                'document_id' => $document->id,
+                'document_title' => $document->title,
+                'vector_ids_count' => count($vectorIdsToPrune),
+            ]);
         }
 
         if ($this->shouldQueueVectorSync($document)) {
             SyncDocumentVectorsJob::dispatch($document->id)->afterCommit();
+
+            SupportActivityLog::info('Vector sync queued for ingested document', [
+                'document_id' => $document->id,
+                'document_title' => $document->title,
+                'chunks_count' => count($chunks),
+            ]);
         }
+
+        SupportActivityLog::info('Document ingestion completed', [
+            'document_id' => $document->id,
+            'document_title' => $document->title,
+            'source_id' => $source?->id,
+            'created' => $created,
+            'updated' => $updated,
+            'chunks_count' => count($chunks),
+            'token_estimate' => $tokenEstimate,
+            'normalized_length' => mb_strlen($normalizedText),
+        ]);
 
         return [
             'document' => $document->load('chunks'),

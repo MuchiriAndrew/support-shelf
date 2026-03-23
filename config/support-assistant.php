@@ -21,4 +21,8 @@ return [
         'top_k' => (int) env('SUPPORT_RETRIEVAL_TOP_K', 8),
     ],
 
+    'logging' => [
+        'channel' => env('SUPPORT_LOG_CHANNEL', 'supportshelf'),
+    ],
+
 ];

@@ -18,7 +18,7 @@
                     <a href="{{ route('chat') }}" class="chat-primary-button">
                         Open the assistant
                     </a>
-                    <a href="{{ route('admin.ingestion') }}" class="chat-secondary-button px-6 py-3 text-sm">
+                    <a href="{{ route('filament.admin.pages.knowledge-ingestion') }}" class="chat-secondary-button px-6 py-3 text-sm">
                         Manage support content
                     </a>
                 </div>

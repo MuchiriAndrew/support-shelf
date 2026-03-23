@@ -51,7 +51,7 @@ class SystemStatusController extends Controller
             'routes' => [
                 'home' => route('home'),
                 'chat' => route('chat'),
-                'ingestion' => route('admin.ingestion'),
+                'ingestion' => route('filament.admin.pages.knowledge-ingestion'),
                 'search' => route('support.search'),
             ],
         ]);

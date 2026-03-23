@@ -3,6 +3,7 @@
 namespace App\Services\Ingestion;
 
 use App\Models\Source;
+use App\Support\SupportActivityLog;
 use Illuminate\Support\Arr;
 
 class SourceRegistryService
@@ -16,8 +17,7 @@ class SourceRegistryService
     {
         $url = $this->normalizeUrl((string) $attributes['url']);
         $domain = parse_url($url, PHP_URL_HOST);
-
-        return Source::updateOrCreate(
+        $source = Source::updateOrCreate(
             ['url' => $url],
             [
                 'name' => (string) $attributes['name'],
@@ -29,6 +29,19 @@ class SourceRegistryService
                 'metadata' => Arr::get($attributes, 'metadata', []),
             ],
         );
+
+        SupportActivityLog::info('Support source registered', [
+            'source_id' => $source->id,
+            'source_name' => $source->name,
+            'source_type' => $source->source_type,
+            'source_url' => $source->url,
+            'source_domain' => $source->domain,
+            'crawl_enabled' => $source->crawl_enabled,
+            'status' => $source->status,
+            'was_created' => $source->wasRecentlyCreated,
+        ]);
+
+        return $source;
     }
 
     /**
@@ -38,7 +51,7 @@ class SourceRegistryService
      */
     public function registerUploadedSource(string $name, array $metadata = []): Source
     {
-        return Source::firstOrCreate(
+        $source = Source::firstOrCreate(
             [
                 'name' => $name,
                 'source_type' => 'uploaded_document',
@@ -49,6 +62,14 @@ class SourceRegistryService
                 'metadata' => $metadata,
             ],
         );
+
+        SupportActivityLog::info('Uploaded document source resolved', [
+            'source_id' => $source->id,
+            'source_name' => $source->name,
+            'was_created' => $source->wasRecentlyCreated,
+        ]);
+
+        return $source;
     }
 
     /**

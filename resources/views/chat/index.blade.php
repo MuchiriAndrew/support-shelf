@@ -1,7 +1,7 @@
 @extends('layouts.app', ['pageTitle' => 'Chat', 'pageKind' => 'chat', 'fullWidth' => true, 'hideFooter' => true])
 
 @section('content')
-    <div x-data="chatShell(@js($chatState))" x-init="init()" class="grid min-h-[calc(100svh-4.5rem)] lg:grid-cols-[300px_minmax(0,1fr)]">
+    <div x-data="chatShell(@js($chatState))" x-init="init()" class="chat-page-layout">
         <aside class="chat-sidebar hidden lg:block">
             <div class="flex h-full flex-col px-4 py-4 sm:px-5">
                 <button
@@ -125,8 +125,8 @@
         </aside>
 
         <section class="chat-main">
-            <div x-ref="messageViewport" class="h-[calc(100svh-4.5rem)] overflow-y-auto">
-                <div class="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 pb-44 pt-8 sm:px-6 sm:pb-48">
+            <div x-ref="messageViewport" class="chat-message-viewport">
+                <div class="chat-message-inner mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 pt-8 sm:px-6">
                     <div
                         x-show="showPromptScreen"
                         x-cloak

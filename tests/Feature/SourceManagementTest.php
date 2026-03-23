@@ -2,30 +2,40 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\RunSourceCrawlJob;
+use App\Livewire\Admin\IngestionWorkspace;
 use App\Models\CrawlRun;
 use App\Models\Source;
+use App\Models\User;
 use App\Services\Crawling\SupportSiteCrawler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Mockery\MockInterface;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class SourceManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_can_register_a_support_source_from_the_dashboard(): void
+    public function test_it_can_register_a_support_source_from_the_filament_workspace(): void
     {
-        $response = $this->post(route('admin.ingestion.sources.store'), [
-            'name' => 'Acme Support Center',
-            'url' => 'https://example.com/support/',
-            'content_selector' => 'main',
-            'max_depth' => 3,
-            'max_pages' => 25,
-        ]);
+        Bus::fake();
 
-        $response
-            ->assertRedirect()
-            ->assertSessionHas('ingestion_success');
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test(IngestionWorkspace::class)
+            ->set('siteData', [
+                'name' => 'Acme Support Center',
+                'url' => 'https://example.com/support/',
+                'content_selector' => 'main',
+                'status' => 'active',
+                'crawl_enabled' => true,
+                'crawl_now' => true,
+                'max_depth' => 3,
+                'max_pages' => 25,
+            ])
+            ->call('createSource');
 
         $this->assertDatabaseHas('sources', [
             'name' => 'Acme Support Center',
@@ -39,6 +49,8 @@ class SourceManagementTest extends TestCase
 
         $this->assertSame(3, $source->metadata['max_depth'] ?? null);
         $this->assertSame(25, $source->metadata['max_pages'] ?? null);
+
+        Bus::assertDispatched(RunSourceCrawlJob::class);
     }
 
     public function test_the_crawl_command_can_target_a_source_by_id(): void

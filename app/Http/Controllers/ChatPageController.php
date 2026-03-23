@@ -36,7 +36,7 @@ class ChatPageController extends Controller
                 'navigation' => [
                     ['label' => 'Chat', 'route' => 'chat'],
                     ['label' => 'Overview', 'route' => 'home'],
-                    ['label' => 'Ingestion', 'route' => 'admin.ingestion'],
+                    ['label' => 'Ingestion', 'route' => 'filament.admin.pages.knowledge-ingestion'],
                 ],
                 'brand' => [
                     'name' => config('support-assistant.brand.name'),

@@ -9,7 +9,7 @@
     $contentWidth = $contentWidth ?? 'max-w-7xl';
     $navContentWidth = $navContentWidth ?? ($fullWidth ? 'max-w-none' : $contentWidth);
     $mainContainerClass = $fullWidth
-        ? 'w-full'
+        ? 'h-full w-full'
         : "mx-auto w-full {$contentWidth} px-4 sm:px-6 lg:px-8";
     $footerContainerClass = $fullWidth
         ? 'w-full px-4 sm:px-6 lg:px-8'
@@ -17,7 +17,7 @@
     $navigation = [
         ['label' => 'Chat', 'route' => 'chat'],
         ['label' => 'Overview', 'route' => 'home'],
-        ['label' => 'Ingestion', 'route' => 'admin.ingestion'],
+        ['label' => 'Ingestion', 'route' => 'filament.admin.pages.knowledge-ingestion'],
     ];
     $reverbApp = config('reverb.apps.apps.0');
     $reverbOptions = $reverbApp['options'] ?? [];
@@ -46,8 +46,14 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body>
-        <div x-data="siteChrome(@js(['pageKind' => $pageKind]))" x-init="init()" class="site-shell">
+    <body @class([
+        'site-body',
+        'site-body-chat' => $isChatPage,
+    ])>
+        <div x-data="siteChrome(@js(['pageKind' => $pageKind]))" x-init="init()" @class([
+            'site-shell',
+            'site-shell-chat' => $isChatPage,
+        ])>
             <div class="site-shell-glow"></div>
 
             <header class="shell-navbar">
@@ -162,7 +168,10 @@
                 </aside>
             @endunless
 
-            <main class="relative flex-1">
+            <main @class([
+                'relative flex-1',
+                'site-main-chat' => $isChatPage,
+            ])>
                 <div class="{{ $mainContainerClass }}">
                     @yield('content')
                 </div>

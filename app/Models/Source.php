@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Source extends Model
@@ -64,5 +65,13 @@ class Source extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(Document::class);
+    }
+
+    /**
+     * Get the chunks associated with the source's documents.
+     */
+    public function documentChunks(): HasManyThrough
+    {
+        return $this->hasManyThrough(DocumentChunk::class, Document::class);
     }
 }
