@@ -38,13 +38,16 @@ jobs:
           cp .env.example .env
           mkdir -p database
           touch database/database.sqlite
-          php artisan key:generate
+          php -r "file_put_contents('.env', preg_replace('/^APP_KEY=.*$/m', 'APP_KEY=base64:'.base64_encode(random_bytes(32)), file_get_contents('.env')));"
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Finalize Laravel environment
+        run: php artisan key:generate --force
 
       - name: Run test suite
         run: php artisan test
