@@ -26,14 +26,18 @@ RUN apt-get update \
         curl \
         git \
         nginx \
+        zip \
         unzip \
         libcurl4-openssl-dev \
+        libicu-dev \
+        libzip-dev \
         libonig-dev \
         libpq-dev \
         libxml2-dev \
     && docker-php-ext-install -j"$(nproc)" \
         bcmath \
         curl \
+        intl \
         mbstring \
         opcache \
         pcntl \
@@ -41,6 +45,7 @@ RUN apt-get update \
         pdo_pgsql \
         sockets \
         xml \
+        zip \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/nginx/sites-enabled/default \
     && mkdir -p /run/php /var/lib/nginx/body /var/log/nginx /var/www/html/storage \
