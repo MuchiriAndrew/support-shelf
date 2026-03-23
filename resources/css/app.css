@@ -507,6 +507,8 @@
     flex-direction: column;
     overflow: hidden;
     background: var(--page-bg);
+    /* background: blue; */
+    max-height: 100vh;
     color: var(--text-primary);
 }
 

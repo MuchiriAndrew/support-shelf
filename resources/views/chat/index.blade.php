@@ -188,11 +188,11 @@
 
             <footer x-ref="composerFooter" class="chat-fixed-composer">
                 <div class="chat-fixed-composer-inner">
-                    <div class="mx-auto w-full max-w-3xl">
+                    <div class="w-full">
                         <p
                             x-show="error"
                             x-cloak
-                            class="mb-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+                            class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
                             x-text="error"
                         ></p>
 
