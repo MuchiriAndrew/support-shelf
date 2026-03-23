@@ -18,10 +18,16 @@ const applyTheme = (theme) => {
 };
 
 const syncViewportHeight = () => {
+    const layoutHeight = window.innerHeight;
     const viewport = window.visualViewport;
-    const nextHeight = viewport?.height ?? window.innerHeight;
+    const visibleHeight = viewport?.height ?? layoutHeight;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportBottomOffset = Math.max(0, layoutHeight - visibleHeight - viewportTop);
 
-    document.documentElement.style.setProperty('--app-height', `${Math.round(nextHeight)}px`);
+    document.documentElement.style.setProperty('--app-height', `${Math.round(layoutHeight)}px`);
+    document.documentElement.style.setProperty('--visible-height', `${Math.round(visibleHeight)}px`);
+    document.documentElement.style.setProperty('--viewport-top-offset', `${Math.round(viewportTop)}px`);
+    document.documentElement.style.setProperty('--viewport-bottom-offset', `${Math.round(viewportBottomOffset)}px`);
 };
 
 const syncNavbarHeight = () => {
