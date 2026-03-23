@@ -1,19 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-bookworm-slim AS assets
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN npm ci
-
-COPY resources ./resources
-COPY public ./public
-COPY vite.config.js ./
-
-RUN npm run build
-
-FROM php:8.3-fpm-bookworm
+FROM php:8.3-fpm-bookworm AS php-base
 
 ENV APP_ROLE=web \
     APP_ENV=production \
@@ -53,6 +40,8 @@ RUN apt-get update \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+FROM php-base AS vendor
+
 COPY composer.json composer.lock artisan ./
 COPY app ./app
 COPY bootstrap ./bootstrap
@@ -71,7 +60,24 @@ RUN composer install \
     --optimize-autoloader \
     --no-scripts
 
+FROM node:22-bookworm-slim AS assets
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY resources ./resources
+COPY public ./public
+COPY vite.config.js ./
+COPY --from=vendor /var/www/html/vendor/filament/filament/resources ./vendor/filament/filament/resources
+
+RUN npm run build
+
+FROM php-base
+
 COPY . .
+COPY --from=vendor /var/www/html/vendor ./vendor
 COPY --from=assets /app/public/build ./public/build
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/php/conf.d/zz-app.ini /usr/local/etc/php/conf.d/zz-app.ini
