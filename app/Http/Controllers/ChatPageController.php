@@ -23,10 +23,10 @@ class ChatPageController extends Controller
                     ? $chatService->serializeConversation($activeConversation->load(['messages' => fn ($query) => $query->orderBy('id')]))
                     : null,
                 'prompts' => [
-                    'How do I factory reset the AeroTune 90 earbuds?',
-                    'Does the ViewPort 27 monitor support video over USB-C?',
-                    'What is the return window for opened accessories?',
-                    'How can I update the firmware on the KeyLite Pro keyboard?',
+                    // 'How do I factory reset the AeroTune 90 earbuds?',
+                    // 'Does the ViewPort 27 monitor support video over USB-C?',
+                    // 'What is the return window for opened accessories?',
+                    // 'How can I update the firmware on the KeyLite Pro keyboard?',
                 ],
                 'endpoints' => [
                     'startConversation' => route('chat.messages.start'),

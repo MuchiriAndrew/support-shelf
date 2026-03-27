@@ -5,7 +5,10 @@ namespace App\Livewire\Admin;
 use App\Jobs\RunSourceCrawlJob;
 use App\Jobs\SyncDocumentVectorsJob;
 use App\Models\Source;
+use App\Services\Ingestion\KnowledgeCleanupService;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
 use Filament\Notifications\Notification;
@@ -139,12 +142,54 @@ class SourcesLibraryTable extends Component implements HasActions, HasSchemas, H
                             ->success()
                             ->send();
                     }),
+                Action::make('delete_source')
+                    ->label('Delete')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete this source?')
+                    ->modalDescription(fn (Source $record): string => "This will remove {$record->name}, delete its crawled documents and chunks, and queue any Weaviate vectors for cleanup.")
+                    ->modalSubmitActionLabel('Delete source')
+                    ->action(function (Source $record, KnowledgeCleanupService $cleanup): void {
+                        $result = $cleanup->deleteSource($record);
+
+                        $this->resetTable();
+
+                        Notification::make()
+                            ->title('Source deleted')
+                            ->body("Removed {$result['documents_deleted']} document(s), {$result['chunks_deleted']} chunk(s), and queued {$result['vector_ids_deleted']} vector(s) for cleanup.")
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('open_site')
                     ->label('Open')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(fn (Source $record): ?string => $record->url)
                     ->openUrlInNewTab()
                     ->visible(fn (Source $record): bool => filled($record->url)),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    BulkAction::make('delete_sources')
+                        ->label('Delete selected')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete selected sources?')
+                        ->modalDescription('This will remove the selected sources, their crawled documents and chunks, and queue their Weaviate vectors for cleanup.')
+                        ->modalSubmitActionLabel('Delete sources')
+                        ->action(function ($records, KnowledgeCleanupService $cleanup): void {
+                            $result = $cleanup->deleteSources($records);
+
+                            $this->resetTable();
+
+                            Notification::make()
+                                ->title('Sources deleted')
+                                ->body("Removed {$result['sources_deleted']} source(s), {$result['documents_deleted']} document(s), {$result['chunks_deleted']} chunk(s), and queued {$result['vector_ids_deleted']} vector(s) for cleanup.")
+                                ->success()
+                                ->send();
+                        }),
+                ]),
             ])
             ->emptyStateHeading('No support sites yet')
             ->emptyStateDescription('Add a crawlable help center or support knowledge site to start building the library.')

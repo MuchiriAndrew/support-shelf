@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Admin;
 
+use App\Jobs\SyncDocumentVectorsJob;
 use App\Models\Document;
+use App\Services\Ingestion\KnowledgeCleanupService;
 use App\Services\Retrieval\SupportVectorIndexService;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
@@ -13,6 +15,8 @@ use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -114,11 +118,30 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
                             return;
                         }
 
-                        \App\Jobs\SyncDocumentVectorsJob::dispatch($record->id);
+                        SyncDocumentVectorsJob::dispatch($record->id);
 
                         Notification::make()
                             ->title('Vector sync queued')
                             ->body("{$record->title} was queued for vector indexing.")
+                            ->success()
+                            ->send();
+                    }),
+                Action::make('delete_document')
+                    ->label('Delete')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Delete this document?')
+                    ->modalDescription(fn (Document $record): string => "This will remove {$record->title} from the knowledge base, delete its stored chunks, and queue any Weaviate vectors for removal.")
+                    ->modalSubmitActionLabel('Delete document')
+                    ->action(function (Document $record, KnowledgeCleanupService $cleanup): void {
+                        $result = $cleanup->deleteDocument($record);
+
+                        $this->resetTable();
+
+                        Notification::make()
+                            ->title('Document deleted')
+                            ->body("Removed {$result['chunks_deleted']} chunk(s) and queued {$result['vector_ids_deleted']} vector(s) for cleanup.")
                             ->success()
                             ->send();
                     }),
@@ -128,6 +151,29 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
                     ->url(fn (Document $record): ?string => $record->canonical_url)
                     ->openUrlInNewTab()
                     ->visible(fn (Document $record): bool => filled($record->canonical_url)),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    BulkAction::make('delete_documents')
+                        ->label('Delete selected')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Delete selected documents?')
+                        ->modalDescription('This will remove the selected documents from the knowledge base and queue their Weaviate vectors for cleanup.')
+                        ->modalSubmitActionLabel('Delete documents')
+                        ->action(function ($records, KnowledgeCleanupService $cleanup): void {
+                            $result = $cleanup->deleteDocuments($records);
+
+                            $this->resetTable();
+
+                            Notification::make()
+                                ->title('Documents deleted')
+                                ->body("Removed {$result['documents_deleted']} document(s), {$result['chunks_deleted']} chunk(s), and queued {$result['vector_ids_deleted']} vector(s) for cleanup.")
+                                ->success()
+                                ->send();
+                        }),
+                ]),
             ])
             ->emptyStateHeading('No documents yet')
             ->emptyStateDescription('Imported manuals, crawled support pages, and policy files will appear here once added.')

@@ -19,7 +19,7 @@
             </div>
         </div>
 
-        <section class="supportshelf-admin-card" x-data="{ libraryView: 'documents' }">
+        <div x-data="{ libraryView: 'documents' }">
             <div class="supportshelf-admin-card-head">
                 <div>
                     <p class="supportshelf-admin-card-kicker">Stored knowledge</p>
@@ -53,6 +53,6 @@
             <div x-show="libraryView === 'sites'" x-cloak>
                 <livewire:admin.sources-library-table />
             </div>
-        </section>
+        </div>
     </div>
 </x-filament-panels::page>
