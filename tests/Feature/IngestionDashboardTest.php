@@ -25,8 +25,21 @@ class IngestionDashboardTest extends TestCase
 
         $response
             ->assertOk()
-            ->assertSee('Bring support content into the assistant')
-            ->assertSee('Register a support site')
-            ->assertSee('Import a support document');
+            ->assertSee('Bring your private context into the assistant')
+            ->assertSee('Back to website')
+            ->assertSee('Register a website source')
+            ->assertSee('Import a knowledge document');
+    }
+
+    public function test_the_filament_assistant_settings_page_renders_for_authenticated_users(): void
+    {
+        $response = $this
+            ->actingAs(User::factory()->create())
+            ->get(route('filament.admin.pages.assistant-settings'));
+
+        $response
+            ->assertOk()
+            ->assertSee('Shape how your assistant presents itself')
+            ->assertSee('Save assistant settings');
     }
 }

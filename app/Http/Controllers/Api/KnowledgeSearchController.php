@@ -3,14 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\Retrieval\SupportRetrievalService;
+use App\Services\Retrieval\KnowledgeRetrievalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
 
-class SupportSearchController extends Controller
+class KnowledgeSearchController extends Controller
 {
-    public function __invoke(Request $request, SupportRetrievalService $retrievalService): JsonResponse
+    public function __invoke(Request $request, KnowledgeRetrievalService $retrievalService): JsonResponse
     {
         $validated = $request->validate([
             'q' => ['required', 'string', 'min:2', 'max:500'],
@@ -25,6 +25,7 @@ class SupportSearchController extends Controller
 
         try {
             $results = $retrievalService->search(
+                $request->user(),
                 $validated['q'],
                 isset($validated['limit']) ? (int) $validated['limit'] : null,
             );

@@ -2,13 +2,13 @@
 
 namespace App\Jobs;
 
-use App\Models\SupportConversation;
-use App\Models\SupportMessage;
-use App\Services\Chat\SupportAssistantResponseService;
+use App\Models\AssistantConversation;
+use App\Models\AssistantMessage;
+use App\Services\Chat\AssistantResponseService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-class GenerateSupportReplyJob implements ShouldQueue
+class GenerateAssistantReplyJob implements ShouldQueue
 {
     use Queueable;
 
@@ -19,14 +19,14 @@ class GenerateSupportReplyJob implements ShouldQueue
     ) {
     }
 
-    public function handle(SupportAssistantResponseService $responseService): void
+    public function handle(AssistantResponseService $responseService): void
     {
-        $conversation = SupportConversation::query()
+        $conversation = AssistantConversation::query()
             ->with(['messages' => fn ($query) => $query->orderBy('id')])
             ->findOrFail($this->conversationId);
 
-        $userMessage = SupportMessage::query()->findOrFail($this->userMessageId);
-        $assistantMessage = SupportMessage::query()->findOrFail($this->assistantMessageId);
+        $userMessage = AssistantMessage::query()->findOrFail($this->userMessageId);
+        $assistantMessage = AssistantMessage::query()->findOrFail($this->assistantMessageId);
 
         $responseService->streamReply($conversation, $userMessage, $assistantMessage);
     }

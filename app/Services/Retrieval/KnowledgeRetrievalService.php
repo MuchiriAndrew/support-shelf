@@ -4,11 +4,13 @@ namespace App\Services\Retrieval;
 
 use App\Contracts\VectorStore;
 use App\Models\DocumentChunk;
+use App\Models\User;
 use App\Services\Embeddings\OpenAiEmbeddingService;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
-class SupportRetrievalService
+class KnowledgeRetrievalService
 {
     public function __construct(
         protected OpenAiEmbeddingService $embeddingService,
@@ -30,7 +32,7 @@ class SupportRetrievalService
      *     document: array{id: int|null, title: string|null, document_type: string|null, canonical_url: string|null, source: string|null}
      * }>
      */
-    public function search(string $query, ?int $limit = null): Collection
+    public function search(Authenticatable|User|int $user, string $query, ?int $limit = null): Collection
     {
         if (! $this->isConfigured()) {
             throw new RuntimeException('Semantic retrieval is not configured yet.');
@@ -42,9 +44,15 @@ class SupportRetrievalService
             return collect();
         }
 
-        $limit ??= (int) config('support-assistant.retrieval.top_k', 8);
+        $limit ??= (int) config('assistant.retrieval.top_k', 8);
         $queryVector = $this->embeddingService->embedText($query);
-        $matches = $this->vectorStore->search($queryVector, $limit);
+        $userId = $user instanceof Authenticatable || $user instanceof User
+            ? (int) $user->getAuthIdentifier()
+            : (int) $user;
+
+        $matches = $this->vectorStore->search($queryVector, $limit, [
+            'user_id' => $userId,
+        ]);
 
         if ($matches === []) {
             return collect();
@@ -61,6 +69,7 @@ class SupportRetrievalService
         $chunks = DocumentChunk::query()
             ->with('document.source')
             ->whereKey($chunkIds)
+            ->whereHas('document', fn ($query) => $query->where('user_id', $userId))
             ->get()
             ->keyBy('id');
 

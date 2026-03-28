@@ -11,7 +11,7 @@ const formatInline = (value = '') => {
     let escaped = escapeHtml(value);
 
     escaped = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, label, url) => {
-        return `<a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer" class="chat-link">${label}</a>`;
+        return `<a href="${escapeAttribute(url)}" target="_blank" rel="noreferrer" class="font-medium text-[var(--link-color)] underline underline-offset-4 transition hover:opacity-80">${label}</a>`;
     });
 
     escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');

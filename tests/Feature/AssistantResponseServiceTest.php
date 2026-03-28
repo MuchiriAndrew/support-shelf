@@ -2,17 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Models\SupportConversation;
-use App\Models\SupportMessage;
-use App\Services\Chat\SupportAssistantResponseService;
-use App\Services\Retrieval\SupportRetrievalService;
+use App\Models\AssistantConversation;
+use App\Models\User;
+use App\Services\Chat\AssistantResponseService;
+use App\Services\Retrieval\KnowledgeRetrievalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery\MockInterface;
 use OpenAI\Laravel\Facades\OpenAI;
 use OpenAI\Responses\Responses\CreateStreamedResponse;
 use Tests\TestCase;
 
-class SupportAssistantResponseServiceTest extends TestCase
+class AssistantResponseServiceTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -20,11 +20,14 @@ class SupportAssistantResponseServiceTest extends TestCase
     {
         config()->set('broadcasting.default', 'null');
         config()->set('openai.api_key', 'test-key');
-        config()->set('support-assistant.models.responses', 'gpt-5.4-mini');
+        config()->set('assistant.models.responses', 'gpt-5.4-mini');
+        $user = User::factory()->create([
+            'assistant_name' => 'Andrew Assistant',
+        ]);
 
-        $this->mock(SupportRetrievalService::class, function (MockInterface $mock): void {
+        $this->mock(KnowledgeRetrievalService::class, function (MockInterface $mock): void {
             $mock->shouldReceive('isConfigured')->andReturn(true);
-            $mock->shouldReceive('search')->once()->andReturn(collect([
+            $mock->shouldReceive('search')->once()->withArgs(fn ($userId, $query) => $userId !== null && $query === 'How do I reset my AirPods?')->andReturn(collect([
                 [
                     'chunk_id' => 42,
                     'distance' => 0.12,
@@ -32,7 +35,7 @@ class SupportAssistantResponseServiceTest extends TestCase
                     'document' => [
                         'title' => 'How to reset your AirPods and AirPods Pro',
                         'source' => 'Apple AirPods Support',
-                        'document_type' => 'support_page',
+                        'document_type' => 'web_page',
                         'canonical_url' => 'https://support.apple.com/en-us/118531',
                     ],
                 ],
@@ -43,8 +46,9 @@ class SupportAssistantResponseServiceTest extends TestCase
             CreateStreamedResponse::fake($this->streamFixture()),
         ]);
 
-        $conversation = SupportConversation::query()->create([
+        $conversation = AssistantConversation::query()->create([
             'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'user_id' => $user->id,
             'session_token' => 'test-session',
             'title' => 'AirPods reset',
             'status' => 'queued',
@@ -65,7 +69,7 @@ class SupportAssistantResponseServiceTest extends TestCase
             'status' => 'queued',
         ]);
 
-        app(SupportAssistantResponseService::class)->streamReply($conversation->fresh('messages'), $userMessage->fresh(), $assistantMessage->fresh());
+        app(AssistantResponseService::class)->streamReply($conversation->fresh('messages'), $userMessage->fresh(), $assistantMessage->fresh());
 
         $assistantMessage = $assistantMessage->fresh();
         $conversation = $conversation->fresh();

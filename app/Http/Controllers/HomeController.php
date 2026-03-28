@@ -9,29 +9,69 @@ class HomeController extends Controller
     public function __invoke(): View
     {
         return view('home', [
+            'heroMetrics' => [
+                [
+                    'label' => 'Private by default',
+                    'value' => 'One isolated assistant per account',
+                ],
+                [
+                    'label' => 'Knowledge sources',
+                    'value' => 'Upload files and crawl full websites',
+                ],
+                [
+                    'label' => 'Grounded responses',
+                    'value' => 'Answers stay tied to your own context',
+                ],
+            ],
             'pillars' => [
                 [
-                    'title' => 'Grounded product answers',
-                    'description' => 'Customers can ask about setup, compatibility, returns, and policies without digging through help-center pages themselves.',
+                    'title' => 'Private knowledge, grounded answers',
+                    'description' => 'Each account builds answers from its own uploaded documents and crawled URLs, so responses stay aligned with that user\'s data.',
                 ],
                 [
-                    'title' => 'One support library',
-                    'description' => 'Manuals, policy documents, and support articles are pulled into one searchable knowledge base instead of living in separate silos.',
+                    'title' => 'One workspace per user',
+                    'description' => 'Every user gets an isolated AI workspace where documents, links, vectors, and conversations remain private to that account.',
                 ],
                 [
-                    'title' => 'Cleaner support operations',
-                    'description' => 'Teams get a reusable assistant experience that stays consistent across product questions and post-purchase help.',
+                    'title' => 'Custom assistant behavior',
+                    'description' => 'Users can tailor their assistant name and instructions while the platform keeps the output grounded in retrieved context.',
                 ],
             ],
-            'foundation' => [
-                'The chat experience is designed to feel like a familiar support conversation instead of a developer demo.',
-                'Answers are shaped around your own support content so product details and store policies stay consistent.',
-                'Ingestion tools let you grow the knowledge base over time by adding websites, manuals, and policy documents.',
+            'workflow' => [
+                [
+                    'title' => 'Ingest your context',
+                    'description' => 'Drop in documents or point the platform at a website, and the knowledge base starts building around your own material.',
+                ],
+                [
+                    'title' => 'Index it privately',
+                    'description' => 'Content is chunked, embedded, and stored for retrieval in a workspace scoped to the current user only.',
+                ],
+                [
+                    'title' => 'Chat with your assistant',
+                    'description' => 'Ask questions in a modern chat UI and get responses grounded in the sources you uploaded, not public guesswork.',
+                ],
             ],
-            'journey' => [
-                'Bring in help-center pages and support files.',
-                'Turn that content into a searchable support library.',
-                'Let customers ask questions in a clean, conversational interface.',
+            'showcases' => [
+                [
+                    'eyebrow' => 'Source ingestion demo',
+                    'title' => 'Show how websites and files land inside the knowledge base',
+                    'description' => 'Use this section for a short recording of website ingestion, uploads, and the knowledge library updating after processing.',
+                    'video_src' => null,
+                    'placeholder' => 'Add an ingestion walkthrough video here',
+                ],
+                [
+                    'eyebrow' => 'Assistant chat demo',
+                    'title' => 'Show the assistant answering from private context',
+                    'description' => 'Record a chat session that demonstrates grounded answers, history, and the polished customer-facing experience.',
+                    'video_src' => null,
+                    'placeholder' => 'Add a chat demo video here',
+                ],
+            ],
+            'proofPoints' => [
+                'Websites and uploaded documents feed the same private retrieval layer.',
+                'Assistant identity and behavior can be tailored per user from the admin panel.',
+                'Realtime chat makes the product feel responsive instead of feeling like a static demo.',
+                'The product is already structured for a SaaS model with per-user isolation across storage, retrieval, and conversation history.',
             ],
         ]);
     }

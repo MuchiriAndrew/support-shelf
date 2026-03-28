@@ -3,18 +3,18 @@
         <div class="supportshelf-admin-intro">
             <div>
                 <p class="supportshelf-admin-kicker">Knowledge operations</p>
-                <h1 class="supportshelf-admin-heading">Bring support content into the assistant</h1>
+                <h1 class="supportshelf-admin-heading">Bring your private context into the assistant</h1>
                 <p class="supportshelf-admin-copy">
-                    Add support sites, upload manuals or policy files, and kick off training so the assistant stays ready for grounded answers.
+                    Add websites and upload documents so your assistant can answer from your own private context.
                 </p>
             </div>
 
             <div class="supportshelf-admin-highlight">
                 <p class="supportshelf-admin-highlight-label">What this page manages</p>
                 <ul class="supportshelf-admin-list">
-                    <li>Support site registration and crawl triggers</li>
-                    <li>Document imports for manuals, FAQs, and policy files</li>
-                    <li>Training actions for the searchable knowledge base</li>
+                    <li>Website source registration with automatic crawling</li>
+                    <li>Document imports for PDFs, text, markdown, and HTML</li>
+                    <li>A simpler starting point for building your private knowledge base</li>
                 </ul>
 
                 <div class="supportshelf-admin-inline-actions">

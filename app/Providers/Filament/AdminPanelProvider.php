@@ -6,6 +6,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationItem;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -26,10 +27,17 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
-            ->brandName(config('support-assistant.brand.name'))
+            ->brandName(config('assistant.brand.name'))
             ->font('Outfit')
             ->maxContentWidth(Width::Full)
+            // ->sidebarFullyCollapsibleOnDesktop()//collapsible on desktop and expanded on mobile by default
             ->login()
+            ->navigationItems([
+                NavigationItem::make('Back to website')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->url(fn (): string => route('home'))
+                    ->sort(999),
+            ])
             ->colors([
                 'primary' => Color::Blue,
             ])

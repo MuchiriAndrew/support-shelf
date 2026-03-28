@@ -6,7 +6,8 @@ use App\Jobs\DeleteChunkVectorsJob;
 use App\Jobs\SyncDocumentVectorsJob;
 use App\Models\Document;
 use App\Models\Source;
-use App\Support\SupportActivityLog;
+use App\Models\User;
+use App\Support\ActivityLog;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -25,9 +26,10 @@ class DocumentIngestionService
      * @param  array<string, mixed>  $attributes
      * @return array{document: Document, created: bool, updated: bool, chunks_count: int}
      */
-    public function ingestText(?Source $source, string $title, string $documentType, string $content, array $attributes = []): array
+    public function ingestText(User $user, ?Source $source, string $title, string $documentType, string $content, array $attributes = []): array
     {
-        SupportActivityLog::info('Document ingestion started', [
+        ActivityLog::info('Document ingestion started', [
+            'user_id' => $user->id,
             'source_id' => $source?->id,
             'source_name' => $source?->name,
             'document_title' => $title,
@@ -41,7 +43,8 @@ class DocumentIngestionService
         $normalizedText = $this->normalizer->normalize($content);
 
         if (mb_strlen($normalizedText) < 40) {
-            SupportActivityLog::warning('Document ingestion skipped because normalized content was too short', [
+            ActivityLog::warning('Document ingestion skipped because normalized content was too short', [
+                'user_id' => $user->id,
                 'source_id' => $source?->id,
                 'document_title' => $title,
                 'normalized_length' => mb_strlen($normalizedText),
@@ -53,7 +56,7 @@ class DocumentIngestionService
 
         $checksum = sha1($normalizedText);
         $tokenEstimate = $this->tokenEstimator->estimate($normalizedText);
-        $document = $this->findExistingDocument($source, $attributes, $checksum);
+        $document = $this->findExistingDocument($user, $source, $attributes, $checksum);
         $vectorIdsToPrune = [];
         $chunks = $this->chunkingService->chunk($normalizedText);
 
@@ -73,13 +76,15 @@ class DocumentIngestionService
             if ($this->shouldQueueVectorSync($document)) {
                 SyncDocumentVectorsJob::dispatch($document->id)->afterCommit();
 
-                SupportActivityLog::info('Vector sync queued for unchanged document', [
+                ActivityLog::info('Vector sync queued for unchanged document', [
+                    'user_id' => $user->id,
                     'document_id' => $document->id,
                     'document_title' => $document->title,
                 ]);
             }
 
-            SupportActivityLog::info('Document ingestion completed without content changes', [
+            ActivityLog::info('Document ingestion completed without content changes', [
+                'user_id' => $user->id,
                 'document_id' => $document->id,
                 'document_title' => $document->title,
                 'token_estimate' => $tokenEstimate,
@@ -99,8 +104,9 @@ class DocumentIngestionService
             ? $document->chunks()->whereNotNull('vector_id')->pluck('vector_id')->filter()->values()->all()
             : [];
 
-        DB::transaction(function () use ($document, $source, $title, $documentType, $normalizedText, $checksum, $tokenEstimate, $attributes, $chunks): void {
+        DB::transaction(function () use ($document, $user, $source, $title, $documentType, $normalizedText, $checksum, $tokenEstimate, $attributes, $chunks): void {
             $document->fill([
+                'user_id' => $user->id,
                 'source_id' => $source?->id,
                 'title' => $title,
                 'document_type' => $documentType,
@@ -134,7 +140,8 @@ class DocumentIngestionService
         if ($vectorIdsToPrune !== [] && $this->shouldQueueVectorPrune()) {
             DeleteChunkVectorsJob::dispatch($vectorIdsToPrune)->afterCommit();
 
-            SupportActivityLog::info('Stale vectors queued for deletion after document refresh', [
+            ActivityLog::info('Stale vectors queued for deletion after document refresh', [
+                'user_id' => $user->id,
                 'document_id' => $document->id,
                 'document_title' => $document->title,
                 'vector_ids_count' => count($vectorIdsToPrune),
@@ -144,14 +151,16 @@ class DocumentIngestionService
         if ($this->shouldQueueVectorSync($document)) {
             SyncDocumentVectorsJob::dispatch($document->id)->afterCommit();
 
-            SupportActivityLog::info('Vector sync queued for ingested document', [
+            ActivityLog::info('Vector sync queued for ingested document', [
+                'user_id' => $user->id,
                 'document_id' => $document->id,
                 'document_title' => $document->title,
                 'chunks_count' => count($chunks),
             ]);
         }
 
-        SupportActivityLog::info('Document ingestion completed', [
+        ActivityLog::info('Document ingestion completed', [
+            'user_id' => $user->id,
             'document_id' => $document->id,
             'document_title' => $document->title,
             'source_id' => $source?->id,
@@ -173,12 +182,13 @@ class DocumentIngestionService
     /**
      * @param  array<string, mixed>  $attributes
      */
-    protected function findExistingDocument(?Source $source, array $attributes, string $checksum): ?Document
+    protected function findExistingDocument(User $user, ?Source $source, array $attributes, string $checksum): ?Document
     {
         $canonicalUrl = $attributes['canonical_url'] ?? null;
 
         if (is_string($canonicalUrl) && $canonicalUrl !== '') {
             return Document::query()
+                ->ownedBy($user)
                 ->when($source, fn ($query) => $query->where('source_id', $source->id))
                 ->where('canonical_url', $canonicalUrl)
                 ->first();
@@ -189,12 +199,14 @@ class DocumentIngestionService
 
         if (is_string($storageDisk) && is_string($storagePath) && $storagePath !== '') {
             return Document::query()
+                ->ownedBy($user)
                 ->where('storage_disk', $storageDisk)
                 ->where('storage_path', $storagePath)
                 ->first();
         }
 
         return Document::query()
+            ->ownedBy($user)
             ->when($source, fn ($query) => $query->where('source_id', $source->id), fn ($query) => $query->whereNull('source_id'))
             ->where('checksum', $checksum)
             ->first();
@@ -218,7 +230,7 @@ class DocumentIngestionService
         return $document->exists
             && $document->chunks()->whereNull('vector_id')->exists()
             && filled(config('openai.api_key'))
-            && filled(config('support-assistant.models.embeddings'))
+            && filled(config('assistant.models.embeddings'))
             && filled(config('vector-store.stores.'.config('vector-store.default').'.url'));
     }
 

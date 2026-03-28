@@ -5,6 +5,7 @@ namespace App\Services\Crawling;
 use App\Models\CrawlRun;
 use App\Models\Source;
 use App\Services\Documents\DocumentIngestionService;
+use App\Support\ActivityLog;
 use Illuminate\Support\Str;
 use RuntimeException;
 use Symfony\Component\BrowserKit\HttpBrowser;
@@ -12,7 +13,7 @@ use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\DomCrawler\UriResolver;
 use Throwable;
 
-class SupportSiteCrawler
+class SiteCrawler
 {
     public function __construct(
         protected HttpBrowser $browser,
@@ -21,12 +22,16 @@ class SupportSiteCrawler
     }
 
     /**
-     * Crawl a support source and persist extracted documents.
+     * Crawl a website source and persist extracted documents.
      */
     public function crawlSource(Source $source, string $triggeredBy = 'manual', ?callable $onProgress = null): CrawlRun
     {
         if (! $source->url) {
             throw new RuntimeException('The selected source does not have a crawlable URL.');
+        }
+
+        if (! $source->user_id) {
+            throw new RuntimeException('The selected source is not assigned to a user account.');
         }
 
         $maxDepth = $this->resolveMaxDepth($source);
@@ -118,13 +123,24 @@ class SupportSiteCrawler
 
             $title = $this->extractTitle($crawler, $url);
             $content = $this->extractPrimaryContent($crawler, $source->content_selector);
-            $isRelevant = $this->pageLooksRelevant($source, $title, $content, $url);
+            $contentLength = mb_strlen($content);
 
-            if ($isRelevant && mb_strlen($content) >= 80) {
+            ActivityLog::debug('Crawler evaluated page', [
+                'user_id' => $source->user_id,
+                'source_id' => $source->id,
+                'source_name' => $source->name,
+                'url' => $url,
+                'depth' => $depth,
+                'title' => $title,
+                'content_length' => $contentLength,
+            ]);
+
+            if ($contentLength >= 10) {
                 $result = $this->documentIngestionService->ingestText(
+                    $source->user,
                     $source,
                     $title,
-                    'support_page',
+                    'web_page',
                     $content,
                     [
                         'canonical_url' => $url,
@@ -140,10 +156,30 @@ class SupportSiteCrawler
                 }
 
                 $processedPages++;
+            } else {
+                ActivityLog::debug('Crawler skipped page because extracted content was too short', [
+                    'user_id' => $source->user_id,
+                    'source_id' => $source->id,
+                    'source_name' => $source->name,
+                    'url' => $url,
+                    'depth' => $depth,
+                    'content_length' => $contentLength,
+                ]);
             }
 
-            if ($depth < $maxDepth && ($isRelevant || $depth === 0)) {
-                foreach ($this->discoverLinks($crawler, $url, $source) as $link) {
+            if ($depth < $maxDepth) {
+                $links = $this->discoverLinks($crawler, $url, $source);
+
+                ActivityLog::debug('Crawler discovered links from page', [
+                    'user_id' => $source->user_id,
+                    'source_id' => $source->id,
+                    'source_name' => $source->name,
+                    'url' => $url,
+                    'depth' => $depth,
+                    'links_discovered' => count($links),
+                ]);
+
+                foreach ($links as $link) {
                     if (! isset($visited[$link]) && ! isset($discovered[$link])) {
                         $discovered[$link] = true;
                         $queue[] = [$link, $depth + 1];
@@ -246,9 +282,8 @@ class SupportSiteCrawler
     protected function discoverLinks(Crawler $crawler, string $currentUrl, Source $source): array
     {
         $host = strtolower((string) ($source->domain ?: parse_url($source->url ?? '', PHP_URL_HOST)));
-        $keywords = $this->resolveRelevantKeywords($source);
 
-        return array_values(array_unique(array_filter(array_map(function (Crawler $node) use ($currentUrl, $host, $keywords): ?string {
+        return array_values(array_unique(array_filter(array_map(function (Crawler $node) use ($currentUrl, $host): ?string {
             $href = trim((string) $node->attr('href'));
 
             if ($href === '' || str_starts_with($href, '#') || str_starts_with($href, 'mailto:') || str_starts_with($href, 'javascript:')) {
@@ -264,24 +299,6 @@ class SupportSiteCrawler
 
             if (preg_match('/\.(pdf|jpg|jpeg|png|gif|svg|zip|mp4|mp3)$/i', (string) parse_url($absoluteUrl, PHP_URL_PATH))) {
                 return null;
-            }
-
-            if ($keywords !== []) {
-                $linkText = Str::lower(trim($node->text('', true)));
-                $linkContext = Str::lower($absoluteUrl.' '.$linkText);
-
-                $matchesKeyword = false;
-
-                foreach ($keywords as $keyword) {
-                    if (str_contains($linkContext, $keyword)) {
-                        $matchesKeyword = true;
-                        break;
-                    }
-                }
-
-                if (! $matchesKeyword) {
-                    return null;
-                }
             }
 
             return $absoluteUrl;
@@ -336,81 +353,6 @@ class SupportSiteCrawler
         }
 
         return max(1, (int) config('crawling.max_pages', 40));
-    }
-
-    protected function pageLooksRelevant(Source $source, string $title, string $content, string $url): bool
-    {
-        $keywords = $this->resolveRelevantKeywords($source);
-
-        if ($keywords === []) {
-            return true;
-        }
-
-        $haystack = Str::lower(implode(' ', [
-            $title,
-            $url,
-            Str::limit($content, 4000, ''),
-        ]));
-
-        foreach ($keywords as $keyword) {
-            if (str_contains($haystack, $keyword)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return list<string>
-     */
-    protected function resolveRelevantKeywords(Source $source): array
-    {
-        $rawDomainTokens = preg_split('/[^a-z0-9]+/i', Str::lower((string) $source->domain)) ?: [];
-        $rawNameTokens = preg_split('/[^a-z0-9]+/i', Str::lower($source->name)) ?: [];
-        $rawPathTokens = preg_split('/[^a-z0-9]+/i', Str::lower((string) parse_url((string) $source->url, PHP_URL_PATH))) ?: [];
-
-        $domainTokens = array_values(array_filter($rawDomainTokens, fn (string $token): bool => $token !== ''));
-        $stopwords = $this->crawlKeywordStopwords();
-
-        $keywords = array_values(array_unique(array_filter(
-            [...$rawPathTokens, ...$rawNameTokens],
-            fn (string $token): bool => $token !== ''
-                && strlen($token) >= 4
-                && ! in_array($token, $domainTokens, true)
-                && ! in_array($token, $stopwords, true),
-        )));
-
-        return $keywords;
-    }
-
-    /**
-     * @return list<string>
-     */
-    protected function crawlKeywordStopwords(): array
-    {
-        return [
-            'support',
-            'center',
-            'help',
-            'home',
-            'index',
-            'docs',
-            'doc',
-            'guide',
-            'guides',
-            'manual',
-            'manuals',
-            'official',
-            'knowledge',
-            'base',
-            'store',
-            'learn',
-            'article',
-            'articles',
-            'product',
-            'products',
-        ];
     }
 
     /**

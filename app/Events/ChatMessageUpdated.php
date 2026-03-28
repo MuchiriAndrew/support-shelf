@@ -7,7 +7,7 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class SupportChatMessageUpdated implements ShouldBroadcastNow
+class ChatMessageUpdated implements ShouldBroadcastNow
 {
     use Dispatchable;
     use SerializesModels;
@@ -23,12 +23,12 @@ class SupportChatMessageUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): Channel
     {
-        return new Channel("support-chat.{$this->conversationUuid}");
+        return new Channel("assistant-chat.{$this->conversationUuid}");
     }
 
     public function broadcastAs(): string
     {
-        return 'support.chat.message.updated';
+        return 'assistant.chat.message.updated';
     }
 
     /**

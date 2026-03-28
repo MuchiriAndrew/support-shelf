@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Services\Retrieval\SupportVectorIndexService;
+use App\Services\Retrieval\KnowledgeVectorIndexService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
@@ -16,7 +16,7 @@ class SyncDocumentVectorsJob implements ShouldQueue
     ) {
     }
 
-    public function handle(SupportVectorIndexService $indexService): void
+    public function handle(KnowledgeVectorIndexService $indexService): void
     {
         if (! $indexService->isConfigured()) {
             return;

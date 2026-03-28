@@ -5,7 +5,7 @@ namespace App\Support;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class SupportActivityLog
+class ActivityLog
 {
     /**
      * @param  array<string, mixed>  $context
@@ -44,7 +44,7 @@ class SupportActivityLog
      */
     protected static function write(string $level, string $message, array $context = []): void
     {
-        $channel = (string) config('support-assistant.logging.channel', 'stack');
+        $channel = (string) config('assistant.logging.channel', 'stack');
         $context = array_filter(array_replace([
             'domain' => 'supportshelf',
             'environment' => app()->environment(),

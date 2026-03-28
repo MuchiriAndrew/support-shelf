@@ -3,32 +3,35 @@
 namespace App\Console\Commands;
 
 use App\Models\Source;
-use App\Services\Crawling\SupportSiteCrawler;
+use App\Models\User;
+use App\Services\Crawling\SiteCrawler;
 use Illuminate\Console\Command;
+use RuntimeException;
 use Throwable;
 
-class CrawlSupportSourcesCommand extends Command
+class CrawlKnowledgeSourcesCommand extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'support:crawl
+    protected $signature = 'knowledge:crawl
                             {source? : A source id, name, or URL}
-                            {--all : Crawl all active sources}';
+                            {--all : Crawl all active sources}
+                            {--user= : Optional user id or email to scope the source lookup}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Crawl one or more registered support sources';
+    protected $description = 'Crawl one or more registered website sources';
 
     /**
      * Execute the console command.
      */
-    public function handle(SupportSiteCrawler $crawler): int
+    public function handle(SiteCrawler $crawler): int
     {
         $sources = $this->resolveSources();
 
@@ -82,12 +85,17 @@ class CrawlSupportSourcesCommand extends Command
     protected function resolveSources()
     {
         $sourceArgument = $this->argument('source');
+        $user = $this->resolveUser();
 
         if ($this->option('all') || $sourceArgument === null) {
-            return Source::query()->crawlable()->get();
+            return Source::query()
+                ->when($user, fn ($query) => $query->ownedBy($user))
+                ->crawlable()
+                ->get();
         }
 
         return Source::query()
+            ->when($user, fn ($query) => $query->ownedBy($user))
             ->crawlable()
             ->where(function ($query) use ($sourceArgument): void {
                 if (is_numeric($sourceArgument)) {
@@ -99,5 +107,18 @@ class CrawlSupportSourcesCommand extends Command
                     ->orWhere('url', $sourceArgument);
             })
             ->get();
+    }
+
+    protected function resolveUser(): ?User
+    {
+        $value = trim((string) $this->option('user'));
+
+        if ($value === '') {
+            return null;
+        }
+
+        return User::query()
+            ->when(is_numeric($value), fn ($query) => $query->whereKey((int) $value), fn ($query) => $query->where('email', $value))
+            ->firstOr(fn () => throw new RuntimeException("No user found for [{$value}]."));
     }
 }

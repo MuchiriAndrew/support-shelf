@@ -4,8 +4,9 @@ namespace App\Livewire\Admin;
 
 use App\Jobs\SyncDocumentVectorsJob;
 use App\Models\Document;
+use App\Models\Source;
 use App\Services\Ingestion\KnowledgeCleanupService;
-use App\Services\Retrieval\SupportVectorIndexService;
+use App\Services\Retrieval\KnowledgeVectorIndexService;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -38,6 +39,8 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
     {
         return $table
             ->query(fn (): Builder => Document::query()
+                ->ownedBy(auth()->user())
+                ->uploaded()
                 ->with('source')
                 ->withCount('chunks')
                 ->withCount([
@@ -49,7 +52,7 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
                 TextColumn::make('title')
                     ->searchable()
                     ->sortable()
-                    ->description(fn (Document $record): string => $record->source?->name ?? 'Uploaded document'),
+                    ->description(fn (Document $record): string => $record->source?->name ?? 'Direct upload'),
                 TextColumn::make('document_type')
                     ->label('Type')
                     ->badge()
@@ -84,6 +87,8 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
             ->filters([
                 SelectFilter::make('document_type')
                     ->options(fn (): array => Document::query()
+                        ->ownedBy(auth()->user())
+                        ->uploaded()
                         ->select('document_type')
                         ->distinct()
                         ->orderBy('document_type')
@@ -92,9 +97,16 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
                         ->all()),
                 SelectFilter::make('source_id')
                     ->label('Source')
-                    ->relationship('source', 'name')
+                    ->options(fn (): array => Source::query()
+                        ->ownedBy(auth()->user())
+                        ->where('source_type', 'uploaded_collection')
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
                     ->searchable()
-                    ->preload(),
+                    ->query(fn (Builder $query, array $data): Builder => filled($data['value'] ?? null)
+                        ? $query->where('source_id', $data['value'])
+                        : $query),
                 Filter::make('indexed')
                     ->label('Indexed in Weaviate')
                     ->query(fn (Builder $query): Builder => $query->whereHas('chunks', fn (Builder $chunkQuery): Builder => $chunkQuery->whereNotNull('vector_id'))),
@@ -107,7 +119,7 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
                     ->label('Sync vectors')
                     ->icon('heroicon-o-cpu-chip')
                     ->color('primary')
-                    ->action(function (Document $record, SupportVectorIndexService $indexService): void {
+                    ->action(function (Document $record, KnowledgeVectorIndexService $indexService): void {
                         if (! $indexService->isConfigured()) {
                             Notification::make()
                                 ->title('Vector sync unavailable')
@@ -176,7 +188,7 @@ class KnowledgeLibraryTable extends Component implements HasActions, HasSchemas,
                 ]),
             ])
             ->emptyStateHeading('No documents yet')
-            ->emptyStateDescription('Imported manuals, crawled support pages, and policy files will appear here once added.')
+            ->emptyStateDescription('Uploaded files such as PDFs, text, markdown, and HTML documents will appear here.')
             ->paginated([10, 25, 50]);
     }
 

@@ -2,11 +2,11 @@
 
 namespace App\Services\Chat;
 
-use App\Events\SupportChatMessageUpdated;
-use App\Models\SupportConversation;
-use App\Models\SupportMessage;
+use App\Events\ChatMessageUpdated;
+use App\Models\AssistantConversation;
+use App\Models\AssistantMessage;
 use App\Services\Documents\TokenEstimator;
-use App\Services\Retrieval\SupportRetrievalService;
+use App\Services\Retrieval\KnowledgeRetrievalService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use OpenAI\Laravel\Facades\OpenAI;
@@ -14,26 +14,27 @@ use OpenAI\Responses\Responses\CreateStreamedResponse;
 use RuntimeException;
 use Throwable;
 
-class SupportAssistantResponseService
+class AssistantResponseService
 {
     public function __construct(
-        protected SupportRetrievalService $retrievalService,
-        protected SupportPromptBuilder $promptBuilder,
-        protected SupportChatService $chatService,
+        protected KnowledgeRetrievalService $retrievalService,
+        protected AssistantPromptBuilder $promptBuilder,
+        protected AssistantChatService $chatService,
         protected TokenEstimator $tokenEstimator,
     ) {
     }
 
-    public function streamReply(SupportConversation $conversation, SupportMessage $userMessage, SupportMessage $assistantMessage): void
+    public function streamReply(AssistantConversation $conversation, AssistantMessage $userMessage, AssistantMessage $assistantMessage): void
     {
         $conversation->loadMissing('messages');
+        $conversation->loadMissing('user');
 
         if (! filled(config('openai.api_key')) || ! filled($this->model())) {
             throw new RuntimeException('OpenAI Responses API is not configured. Set OPENAI_API_KEY and OPENAI_RESPONSES_MODEL.');
         }
 
         $matches = $this->retrievalService->isConfigured()
-            ? $this->retrievalService->search($userMessage->content)
+            ? $this->retrievalService->search($conversation->user_id, $userMessage->content)
             : collect();
 
         $citations = $this->formatCitations($matches);
@@ -43,7 +44,7 @@ class SupportAssistantResponseService
             'metadata' => array_replace_recursive(is_array($assistantMessage->metadata) ? $assistantMessage->metadata : [], [
                 'retrieval' => [
                     'matches' => count($citations),
-                    'top_k' => (int) config('support-assistant.retrieval.top_k', 8),
+                    'top_k' => (int) config('assistant.retrieval.top_k', 8),
                     'retrieved_at' => now()->toIso8601String(),
                 ],
             ]),
@@ -65,7 +66,7 @@ class SupportAssistantResponseService
         try {
             $stream = OpenAI::responses()->createStreamed([
                 'model' => $this->model(),
-                'instructions' => $this->promptBuilder->instructions(),
+                'instructions' => $this->promptBuilder->instructions($conversation->user),
                 'input' => [
                     [
                         'role' => 'developer',
@@ -184,7 +185,7 @@ class SupportAssistantResponseService
 
     protected function model(): ?string
     {
-        $model = config('support-assistant.models.responses');
+        $model = config('assistant.models.responses');
 
         return is_string($model) && trim($model) !== '' ? trim($model) : null;
     }
@@ -212,14 +213,14 @@ class SupportAssistantResponseService
             ->all();
     }
 
-    protected function conversationTranscript(SupportConversation $conversation, SupportMessage $userMessage): string
+    protected function conversationTranscript(AssistantConversation $conversation, AssistantMessage $userMessage): string
     {
         return $conversation->messages
             ->where('id', '<', $userMessage->id)
             ->whereIn('role', ['user', 'assistant'])
             ->sortBy('id')
             ->take(-8)
-            ->map(function (SupportMessage $message): string {
+            ->map(function (AssistantMessage $message): string {
                 $label = $message->role === 'assistant' ? 'Assistant' : 'User';
 
                 return "{$label}: ".Str::squish($message->content);
@@ -230,8 +231,8 @@ class SupportAssistantResponseService
     /**
      * @param  array<string, mixed>  $payload
      */
-    protected function broadcast(SupportConversation $conversation, array $payload): void
+    protected function broadcast(AssistantConversation $conversation, array $payload): void
     {
-        broadcast(new SupportChatMessageUpdated($conversation->uuid, $payload));
+        broadcast(new ChatMessageUpdated($conversation->uuid, $payload));
     }
 }

@@ -2,82 +2,93 @@
 
 namespace App\Services\Chat;
 
-use App\Models\SupportConversation;
-use App\Models\SupportMessage;
+use App\Models\AssistantConversation;
+use App\Models\AssistantMessage;
+use App\Models\User;
 use App\Services\Documents\TokenEstimator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
 
-class SupportChatService
+class AssistantChatService
 {
     public function __construct(
         protected TokenEstimator $tokenEstimator,
     ) {
     }
 
-    public function createConversation(string $sessionToken, ?string $title = null): SupportConversation
+    public function createConversation(User $user, ?string $title = null): AssistantConversation
     {
-        return SupportConversation::query()->create([
+        return AssistantConversation::query()->create([
             'uuid' => (string) Str::uuid(),
-            'session_token' => $sessionToken,
+            'user_id' => $user->id,
+            'session_token' => "user-{$user->id}",
             'title' => $title,
             'status' => 'idle',
-            'model' => config('support-assistant.models.responses'),
+            'model' => config('assistant.models.responses'),
             'last_message_at' => now(),
         ]);
     }
 
     /**
-     * @return Collection<int, SupportConversation>
+     * @return Collection<int, AssistantConversation>
      */
-    public function listConversations(string $sessionToken): Collection
+    public function listConversations(User $user): Collection
     {
-        return SupportConversation::query()
-            ->where('session_token', $sessionToken)
+        return AssistantConversation::query()
+            ->ownedBy($user)
             ->with(['messages' => fn ($query) => $query->latest()->limit(1)])
             ->orderByDesc('last_message_at')
             ->orderByDesc('updated_at')
             ->get();
     }
 
-    public function findConversation(string $sessionToken, string $conversationUuid): SupportConversation
+    public function findConversation(User $user, string $conversationUuid): AssistantConversation
     {
-        return SupportConversation::query()
-            ->where('session_token', $sessionToken)
+        return AssistantConversation::query()
+            ->ownedBy($user)
             ->where('uuid', $conversationUuid)
             ->with(['messages' => fn ($query) => $query->orderBy('id')])
             ->firstOrFail();
     }
 
+    public function deleteConversation(User $user, string $conversationUuid): void
+    {
+        AssistantConversation::query()
+            ->ownedBy($user)
+            ->where('uuid', $conversationUuid)
+            ->firstOrFail()
+            ->delete();
+    }
+
     /**
-     * @return array{conversation: SupportConversation, userMessage: SupportMessage, assistantMessage: SupportMessage}
+     * @return array{conversation: AssistantConversation, userMessage: AssistantMessage, assistantMessage: AssistantMessage}
      */
-    public function startConversationTurn(string $sessionToken, string $content, ?string $title = null): array
+    public function startConversationTurn(User $user, string $content, ?string $title = null): array
     {
         $content = trim($content);
 
         if ($content === '') {
-            throw new RuntimeException('A message is required before starting a support turn.');
+            throw new RuntimeException('A message is required before starting a conversation.');
         }
 
-        return DB::transaction(function () use ($sessionToken, $content, $title): array {
-            $conversation = $this->createConversation($sessionToken, $title);
+        return DB::transaction(function () use ($user, $content, $title): array {
+            $conversation = $this->createConversation($user, $title);
 
             return $this->persistConversationTurn($conversation, $content);
         });
     }
 
     /**
-     * @return array{conversation: SupportConversation, userMessage: SupportMessage, assistantMessage: SupportMessage}
+     * @return array{conversation: AssistantConversation, userMessage: AssistantMessage, assistantMessage: AssistantMessage}
      */
-    public function queueConversationTurn(SupportConversation $conversation, string $content): array
+    public function queueConversationTurn(AssistantConversation $conversation, string $content): array
     {
         $content = trim($content);
 
         if ($content === '') {
-            throw new RuntimeException('A message is required before starting a support turn.');
+            throw new RuntimeException('A message is required before continuing the conversation.');
         }
 
         return DB::transaction(fn (): array => $this->persistConversationTurn($conversation, $content));
@@ -86,7 +97,7 @@ class SupportChatService
     /**
      * @return array<string, mixed>
      */
-    public function serializeConversation(SupportConversation $conversation, bool $includeMessages = true): array
+    public function serializeConversation(AssistantConversation $conversation, bool $includeMessages = true): array
     {
         $conversation->loadMissing('messages');
         $latestMessage = $conversation->messages->last();
@@ -98,25 +109,25 @@ class SupportChatService
             'model' => $conversation->model,
             'last_message_at' => $conversation->last_message_at?->toIso8601String(),
             'updated_at' => $conversation->updated_at?->toIso8601String(),
-            'preview' => $latestMessage ? Str::limit(Str::squish($latestMessage->content), 96, '...') : 'Ask a product support question to get started.',
+            'preview' => $latestMessage ? Str::limit(Str::squish($latestMessage->content), 96, '...') : 'Ask a question to start building from your private knowledge base.',
             'messages' => $includeMessages
                 ? $conversation->messages
                     ->sortBy('id')
                     ->values()
-                    ->map(fn (SupportMessage $message): array => $this->serializeMessage($message))
+                    ->map(fn (AssistantMessage $message): array => $this->serializeMessage($message))
                     ->all()
                 : [],
         ];
     }
 
     /**
-     * @param  Collection<int, SupportConversation>  $conversations
+     * @param  Collection<int, AssistantConversation>  $conversations
      * @return array<int, array<string, mixed>>
      */
     public function serializeConversationList(Collection $conversations): array
     {
         return $conversations
-            ->map(fn (SupportConversation $conversation): array => $this->serializeConversation($conversation, includeMessages: false))
+            ->map(fn (AssistantConversation $conversation): array => $this->serializeConversation($conversation, includeMessages: false))
             ->values()
             ->all();
     }
@@ -124,7 +135,7 @@ class SupportChatService
     /**
      * @return array<string, mixed>
      */
-    public function serializeMessage(SupportMessage $message): array
+    public function serializeMessage(AssistantMessage $message): array
     {
         return [
             'id' => $message->id,
@@ -140,9 +151,9 @@ class SupportChatService
     }
 
     /**
-     * @return array{conversation: SupportConversation, userMessage: SupportMessage, assistantMessage: SupportMessage}
+     * @return array{conversation: AssistantConversation, userMessage: AssistantMessage, assistantMessage: AssistantMessage}
      */
-    protected function persistConversationTurn(SupportConversation $conversation, string $content): array
+    protected function persistConversationTurn(AssistantConversation $conversation, string $content): array
     {
         $conversation->refresh();
 
@@ -170,7 +181,7 @@ class SupportChatService
         $conversation->forceFill([
             'title' => $title,
             'status' => 'queued',
-            'model' => config('support-assistant.models.responses'),
+            'model' => config('assistant.models.responses'),
             'last_message_at' => now(),
         ])->save();
 

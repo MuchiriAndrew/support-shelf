@@ -2,20 +2,27 @@
 
 namespace App\Services\Chat;
 
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
-class SupportPromptBuilder
+class AssistantPromptBuilder
 {
-    public function instructions(): string
+    public function instructions(User $user): string
     {
+        $assistantName = $user->assistantDisplayName();
+        $customInstructions = trim((string) $user->assistant_instructions);
+        $customBlock = $customInstructions !== ''
+            ? "\nCustom assistant instructions:\n{$customInstructions}\n"
+            : '';
+
         return <<<PROMPT
-        You are SupportShelf AI, a helpful product support assistant for an e-commerce support workspace.
+        You are {$assistantName}, a helpful AI assistant inside a user-owned private knowledge workspace.
         Answer clearly, practically, and in a friendly tone.
-        Use the provided support context as your source of truth.
-        If the answer is not supported by the provided context, say that you could not verify it from the available support materials.
-        Do not invent policies, specs, compatibility claims, troubleshooting steps, or warranty terms.
-        Prefer direct answers first, then short steps or caveats when useful.
+        Use the provided context as your source of truth.
+        If the answer is not supported by the provided context, say that you could not verify it from the available uploaded materials.
+        Do not invent facts, instructions, policies, or claims that are not supported by the retrieved context.
+        Prefer a direct answer first, then short steps or caveats when useful.{$customBlock}
         PROMPT;
     }
 
@@ -25,11 +32,11 @@ class SupportPromptBuilder
     public function developerMessage(Collection $matches, string $transcript = ''): string
     {
         $context = $matches
-            ->take((int) config('support-assistant.retrieval.top_k', 8))
+            ->take((int) config('assistant.retrieval.top_k', 8))
             ->values()
             ->map(function (array $match, int $index): string {
                 $title = data_get($match, 'document.title', 'Untitled source');
-                $source = data_get($match, 'document.source', 'Support source');
+                $source = data_get($match, 'document.source', 'Knowledge source');
                 $url = data_get($match, 'document.canonical_url', 'n/a');
                 $excerpt = Str::limit(trim((string) ($match['content'] ?? '')), 2200, '...');
 
@@ -45,7 +52,7 @@ class SupportPromptBuilder
             ->implode("\n\n");
 
         if ($context === '') {
-            $context = 'No relevant support context was retrieved for this turn.';
+            $context = 'No relevant knowledge-base context was retrieved for this turn.';
         }
 
         $transcript = trim($transcript);
@@ -54,7 +61,7 @@ class SupportPromptBuilder
             : '';
 
         return <<<PROMPT
-        {$transcriptBlock}Retrieved support context:
+        {$transcriptBlock}Retrieved context:
         {$context}
         PROMPT;
     }

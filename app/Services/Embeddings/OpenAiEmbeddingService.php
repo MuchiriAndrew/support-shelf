@@ -14,7 +14,7 @@ class OpenAiEmbeddingService
 
     public function model(): ?string
     {
-        $model = config('support-assistant.models.embeddings');
+        $model = config('assistant.models.embeddings');
 
         return is_string($model) && trim($model) !== '' ? trim($model) : null;
     }

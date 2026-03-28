@@ -5,7 +5,7 @@ namespace App\Services\Chat;
 use Illuminate\Session\Store;
 use Illuminate\Support\Str;
 
-class SupportChatSessionService
+class ChatSessionService
 {
     public const SESSION_KEY = 'support_chat_session_token';
 

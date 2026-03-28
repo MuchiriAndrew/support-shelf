@@ -6,12 +6,13 @@ use App\Contracts\VectorStore;
 use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Models\Source;
+use App\Models\User;
 use App\Services\Embeddings\OpenAiEmbeddingService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
-class SupportVectorIndexService
+class KnowledgeVectorIndexService
 {
     public function __construct(
         protected OpenAiEmbeddingService $embeddingService,
@@ -34,8 +35,8 @@ class SupportVectorIndexService
         }
 
         $document = $document instanceof Document
-            ? $document->loadMissing('source')
-            : Document::query()->with('source')->findOrFail($document);
+            ? $document->loadMissing(['source', 'user'])
+            : Document::query()->with(['source', 'user'])->findOrFail($document);
 
         /** @var Collection<int, DocumentChunk> $chunks */
         $chunks = $document->chunks()
@@ -69,6 +70,7 @@ class SupportVectorIndexService
                     'id' => $vectorId,
                     'chunk_id' => $chunk->id,
                     'document_id' => $document->id,
+                    'user_id' => $document->user_id,
                     'source_id' => $document->source_id,
                     'source_name' => $document->source?->name,
                     'document_title' => $document->title,
@@ -108,14 +110,15 @@ class SupportVectorIndexService
     /**
      * @return array{documents_indexed: int, chunks_indexed: int}
      */
-    public function syncPendingDocuments(?Source $source = null, int $limit = 50, bool $force = false): array
+    public function syncPendingDocuments(User|int $user, ?Source $source = null, int $limit = 50, bool $force = false): array
     {
         if (! $this->isConfigured()) {
             throw new RuntimeException('Embeddings or the vector store are not configured yet.');
         }
 
         $documents = Document::query()
-            ->with('source')
+            ->with(['source', 'user'])
+            ->ownedBy($user)
             ->when($source, fn (Builder $query): Builder => $query->where('source_id', $source->id))
             ->when(
                 ! $force,
@@ -141,7 +144,7 @@ class SupportVectorIndexService
 
     protected function deterministicVectorId(DocumentChunk $chunk): string
     {
-        $hash = md5("support-chunk:{$chunk->getKey()}");
+        $hash = md5("knowledge-chunk:{$chunk->getKey()}");
 
         return sprintf(
             '%s-%s-%s-%s-%s',

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('sources', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('source_type')->default('support_site');
+            $table->string('source_type')->default('website');
             $table->string('domain')->nullable()->index();
             $table->string('url')->nullable()->unique();
             $table->string('content_selector')->nullable();
@@ -44,7 +44,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('source_id')->nullable()->constrained()->nullOnDelete();
             $table->string('title');
-            $table->string('document_type')->default('support_page');
+            $table->string('document_type')->default('web_page');
             $table->string('language', 8)->default('en');
             $table->string('storage_disk')->nullable();
             $table->string('storage_path')->nullable();

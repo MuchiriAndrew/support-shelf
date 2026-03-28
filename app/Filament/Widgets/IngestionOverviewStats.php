@@ -13,7 +13,7 @@ class IngestionOverviewStats extends StatsOverviewWidget
 
     protected ?string $heading = 'Knowledge base health';
 
-    protected ?string $description = 'Track ingestion volume, vector readiness, and the amount of support content available to the assistant.';
+    protected ?string $description = 'Track ingestion volume, vector readiness, and how much private knowledge is available to your assistant.';
 
     protected function getStats(): array
     {
@@ -21,7 +21,7 @@ class IngestionOverviewStats extends StatsOverviewWidget
         $series = app(IngestionAnalyticsService::class)->dailySeries(7);
 
         return [
-            Stat::make('Support sites', number_format($totals['sources']))
+            Stat::make('Website sources', number_format($totals['sources']))
                 ->description("{$totals['crawlable_sources']} ready to crawl")
                 ->descriptionIcon('heroicon-m-globe-alt', IconPosition::Before)
                 ->chart($series['crawl_runs'])

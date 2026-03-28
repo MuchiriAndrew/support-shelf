@@ -1,6 +1,6 @@
 @php
-    $brandName = config('support-assistant.brand.name');
-    $brandTagline = config('support-assistant.brand.tagline');
+    $brandName = config('assistant.brand.name');
+    $brandTagline = config('assistant.brand.tagline');
     $metaTitle = isset($pageTitle) ? "{$pageTitle} | {$brandName}" : $brandName;
     $pageKind = $pageKind ?? 'default';
     $isChatPage = $pageKind === 'chat';
@@ -14,11 +14,31 @@
     $footerContainerClass = $fullWidth
         ? 'w-full px-4 sm:px-6 lg:px-8'
         : "mx-auto w-full {$contentWidth} px-4 sm:px-6 lg:px-8";
-    $navigation = [
-        ['label' => 'Chat', 'route' => 'chat'],
-        ['label' => 'Overview', 'route' => 'home'],
-        ['label' => 'Ingestion', 'route' => 'filament.admin.pages.knowledge-ingestion'],
-    ];
+    $bodyClass = $isChatPage
+        ? 'h-[var(--app-height)] min-h-[var(--app-height)] overflow-hidden overscroll-none bg-[var(--page-bg)] text-[var(--text-primary)]'
+        : 'min-h-[var(--app-height)] bg-[var(--page-bg)] text-[var(--text-primary)]';
+    $shellClass = $isChatPage
+        ? 'relative flex h-[var(--app-height)] min-h-[var(--app-height)] flex-col overflow-hidden bg-[var(--page-bg)] text-[var(--text-primary)]'
+        : 'relative min-h-screen overflow-x-clip overflow-y-visible bg-[var(--page-bg)] text-[var(--text-primary)]';
+    $navButtonClass = 'inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--button-secondary-border)] bg-[var(--button-secondary-bg)] text-[var(--text-primary)] transition hover:bg-[var(--page-bg-strong)]';
+    $navLinkBase = 'rounded-full border px-4 py-2 text-sm font-medium transition';
+    $navLinkActive = 'border-[color:var(--border-soft)] bg-[var(--button-secondary-bg)] text-[var(--text-primary)]';
+    $navLinkInactive = 'border-transparent text-[var(--text-secondary)] hover:border-[color:var(--button-secondary-border)] hover:bg-[var(--button-secondary-bg)] hover:text-[var(--text-primary)]';
+    $offcanvasOverlayClass = 'fixed inset-0 z-40 bg-black/45 backdrop-blur-sm';
+    $offcanvasClass = 'fixed inset-y-0 right-0 z-50 w-[min(100%,21rem)] overflow-y-auto border-l border-[color:var(--border-soft)] bg-[var(--drawer-bg)] px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] shadow-[var(--shadow-soft)]';
+    $offcanvasLinkClass = 'block rounded-2xl border border-transparent px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:border-[color:var(--button-secondary-border)] hover:bg-[var(--button-secondary-bg)]';
+    $navigation = auth()->check()
+        ? [
+            ['label' => 'Overview', 'route' => 'home'],
+            ['label' => 'Chat', 'route' => 'chat'],
+            ['label' => 'Knowledge', 'route' => 'filament.admin.pages.knowledge-ingestion'],
+            ['label' => 'My Assistant', 'route' => 'filament.admin.pages.assistant-settings'],
+        ]
+        : [
+            ['label' => 'Overview', 'route' => 'home'],
+            ['label' => 'Login', 'route' => 'login'],
+            ['label' => 'Register', 'route' => 'register'],
+        ];
     $reverbApp = config('reverb.apps.apps.0');
     $reverbOptions = $reverbApp['options'] ?? [];
     $reverbRuntimeConfig = [
@@ -46,30 +66,24 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body @class([
-        'site-body',
-        'site-body-chat' => $isChatPage,
-    ])>
-        <div x-data="siteChrome(@js(['pageKind' => $pageKind]))" x-init="init()" @class([
-            'site-shell',
-            'site-shell-chat' => $isChatPage,
-        ])>
-            <div class="site-shell-glow"></div>
+    <body class="m-0 overflow-x-hidden antialiased {{ $bodyClass }}">
+        <div x-data="siteChrome(@js(['pageKind' => $pageKind]))" x-init="init()" class="{{ $shellClass }}">
+            <div class="pointer-events-none absolute inset-0">
+                <div class="absolute -left-24 top-[-7rem] h-[28rem] w-[28rem] rounded-full bg-blue-500/15 blur-[130px]"></div>
+                <div class="absolute right-[-5rem] top-[-4rem] h-[22rem] w-[22rem] rounded-full bg-violet-500/10 blur-[120px]"></div>
+            </div>
 
-            <header class="shell-navbar">
+            <header class="sticky top-0 z-40 min-h-[var(--nav-height)] border-b border-[color:var(--border-soft)] bg-[var(--nav-bg)] backdrop-blur-[18px]">
                 <div @class([
-                    'shell-navbar-inner',
-                    'mx-auto w-full',
+                    'mx-auto flex w-full items-center justify-between gap-4 px-3 py-[0.85rem] sm:px-6 lg:px-8',
                     $navContentWidth => $navContentWidth !== 'max-w-none',
                 ])>
-                    <a href="{{ route('chat') }}" class="shell-brand">
-                        <!-- <span class="brand-mark text-lg font-semibold">S</span> -->
-                         <div class="hidden md:flex">
+                    <a href="{{ auth()->check() ? route('chat') : route('home') }}" class="flex items-center gap-3">
+                        <div class="hidden md:flex">
                             <x-app-emblem />
                         </div>
                         <div>
-                            <!-- <p class="shell-brand-kicker">Support assistant</p> -->
-                            <p class="shell-brand-title">Support Shelf</p>
+                            <p class="text-base font-semibold text-[var(--text-primary)]">Support Shelf</p>
                         </div>
                     </a>
 
@@ -78,8 +92,9 @@
                             <a
                                 href="{{ route($item['route']) }}"
                                 @class([
-                                    'nav-pill rounded-full px-4 py-2 text-sm font-medium',
-                                    'nav-pill-active' => request()->routeIs($item['route']),
+                                    $navLinkBase,
+                                    $navLinkActive => request()->routeIs($item['route']),
+                                    $navLinkInactive => ! request()->routeIs($item['route']),
                                 ])
                             >
                                 {{ $item['label'] }}
@@ -87,12 +102,14 @@
                         @endforeach
                     </nav>
 
-                    <div class="shell-navbar-actions">
-                        <!-- <div class="hidden md:flex">
-                            <x-app-emblem />
-                        </div> -->
+                    <div class="flex items-center gap-3">
+                        @auth
+                            <span class="hidden text-sm font-medium text-[var(--text-secondary)] lg:inline-flex">
+                                {{ auth()->user()->name }}
+                            </span>
+                        @endauth
 
-                        <button type="button" class="theme-toggle" @click="toggleTheme" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+                        <button type="button" class="{{ $navButtonClass }}" @click="toggleTheme" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
                             <svg x-show="theme === 'dark'" x-cloak viewBox="0 0 24 24" fill="none" class="h-5 w-5" stroke="currentColor" stroke-width="1.8">
                                 <circle cx="12" cy="12" r="4.2"></circle>
                                 <path d="M12 2.5V5"></path>
@@ -111,7 +128,7 @@
 
                         <button
                             type="button"
-                            class="shell-menu-button md:hidden"
+                            class="{{ $navButtonClass }} md:hidden"
                             @click="openMobileMenu"
                             aria-label="Open navigation menu"
                         >
@@ -130,7 +147,7 @@
                     x-cloak
                     x-show="mobileNavOpen"
                     x-transition.opacity
-                    class="shell-offcanvas-overlay md:hidden"
+                    class="{{ $offcanvasOverlayClass }} md:hidden"
                     @click="closeMobileNav"
                 ></div>
 
@@ -143,14 +160,14 @@
                     x-transition:leave="transition duration-200 ease-in"
                     x-transition:leave-start="translate-x-0"
                     x-transition:leave-end="translate-x-full"
-                    class="shell-offcanvas md:hidden"
+                    class="{{ $offcanvasClass }} md:hidden"
                 >
-                    <div class="shell-offcanvas-header">
+                    <div class="sticky top-0 flex items-center justify-between gap-4 border-b border-[color:var(--border-soft)] bg-[var(--drawer-bg)] pb-4">
                         <div>
-                            <p class="shell-brand-kicker">Navigate</p>
-                            <p class="shell-brand-title">{{ $brandName }}</p>
+                            <p class="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Navigate</p>
+                            <p class="mt-1 text-base font-semibold text-[var(--text-primary)]">{{ $brandName }}</p>
                         </div>
-                        <button type="button" class="shell-close-button" @click="closeMobileNav" aria-label="Close menu">
+                        <button type="button" class="{{ $navButtonClass }}" @click="closeMobileNav" aria-label="Close menu">
                             <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" stroke="currentColor" stroke-width="1.8">
                                 <path d="M6 6L18 18"></path>
                                 <path d="M18 6L6 18"></path>
@@ -160,17 +177,26 @@
 
                     <div class="mt-8 space-y-3">
                         @foreach ($navigation as $item)
-                            <a href="{{ route($item['route']) }}" class="shell-offcanvas-link" @click="closeMobileNav">
+                            <a href="{{ route($item['route']) }}" class="{{ $offcanvasLinkClass }}" @click="closeMobileNav">
                                 {{ $item['label'] }}
                             </a>
                         @endforeach
+
+                        @auth
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="{{ $offcanvasLinkClass }} w-full text-left">
+                                    Logout
+                                </button>
+                            </form>
+                        @endauth
                     </div>
                 </aside>
             @endunless
 
             <main @class([
                 'relative flex-1',
-                'site-main-chat' => $isChatPage,
+                'min-h-0 overflow-hidden' => $isChatPage,
             ])>
                 <div class="{{ $mainContainerClass }}">
                     @yield('content')
@@ -182,17 +208,27 @@
                     <div class="{{ $footerContainerClass }}">
                         <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--text-muted)]">
                             <p>{{ $brandTagline }}</p>
-                            <p>
-                                Built by
-                                <a
-                                    href="https://portfolio.mkbuilds.live"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    class="footer-signature-link"
-                                >
-                                    Andrew Muchiri
-                                </a>
-                            </p>
+                            <div class="flex flex-wrap items-center gap-4">
+                                @auth
+                                    <form method="POST" action="{{ route('logout') }}">
+                                        @csrf
+                                        <button type="submit" class="text-sm font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]">
+                                            Logout
+                                        </button>
+                                    </form>
+                                @endauth
+                                <p>
+                                    Built by
+                                    <a
+                                        href="https://portfolio.mkbuilds.live"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        class="text-sm font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+                                    >
+                                        Andrew Muchiri
+                                    </a>
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </footer>

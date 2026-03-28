@@ -1,7 +1,7 @@
 import axios from 'axios';
 import Alpine from 'alpinejs';
 
-import './support-shell';
+import './assistant-shell';
 import './echo';
 
 window.axios = axios;

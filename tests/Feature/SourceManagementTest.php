@@ -7,7 +7,7 @@ use App\Livewire\Admin\IngestionWorkspace;
 use App\Models\CrawlRun;
 use App\Models\Source;
 use App\Models\User;
-use App\Services\Crawling\SupportSiteCrawler;
+use App\Services\Crawling\SiteCrawler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Mockery\MockInterface;
@@ -18,44 +18,84 @@ class SourceManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_it_can_register_a_support_source_from_the_filament_workspace(): void
+    public function test_it_can_register_a_website_source_from_the_filament_workspace(): void
     {
         Bus::fake();
 
-        $this->actingAs(User::factory()->create());
+        $user = User::factory()->create();
+        $this->actingAs($user);
 
         Livewire::test(IngestionWorkspace::class)
             ->set('siteData', [
-                'name' => 'Acme Support Center',
+                'name' => 'Acme Docs',
                 'url' => 'https://example.com/support/',
-                'content_selector' => 'main',
-                'status' => 'active',
-                'crawl_enabled' => true,
-                'crawl_now' => true,
-                'max_depth' => 3,
-                'max_pages' => 25,
             ])
             ->call('createSource');
 
         $this->assertDatabaseHas('sources', [
-            'name' => 'Acme Support Center',
+            'user_id' => $user->id,
+            'name' => 'Acme Docs',
             'url' => 'https://example.com/support',
             'domain' => 'example.com',
-            'content_selector' => 'main',
             'crawl_enabled' => true,
+            'status' => 'active',
         ]);
 
         $source = Source::query()->where('url', 'https://example.com/support')->firstOrFail();
 
-        $this->assertSame(3, $source->metadata['max_depth'] ?? null);
-        $this->assertSame(25, $source->metadata['max_pages'] ?? null);
+        $this->assertSame(5, $source->metadata['max_depth'] ?? null);
+        $this->assertSame(500, $source->metadata['max_pages'] ?? null);
 
         Bus::assertDispatched(RunSourceCrawlJob::class);
     }
 
+    public function test_the_website_scope_only_returns_actual_website_sources(): void
+    {
+        $user = User::factory()->create();
+
+        $websiteSource = Source::query()->create([
+            'user_id' => $user->id,
+            'name' => 'Acme Docs',
+            'source_type' => 'website',
+            'url' => 'https://example.com/docs',
+            'domain' => 'example.com',
+            'crawl_enabled' => true,
+            'status' => 'active',
+        ]);
+
+        $legacyWebsiteSource = Source::query()->create([
+            'user_id' => $user->id,
+            'name' => 'Legacy Support Site',
+            'source_type' => 'support_site',
+            'url' => 'https://legacy.example.com/help',
+            'domain' => 'legacy.example.com',
+            'crawl_enabled' => true,
+            'status' => 'active',
+        ]);
+
+        Source::query()->create([
+            'user_id' => $user->id,
+            'name' => 'Uploaded Manuals',
+            'source_type' => 'uploaded_collection',
+            'crawl_enabled' => false,
+            'status' => 'active',
+        ]);
+
+        $sourceIds = Source::query()
+            ->ownedBy($user)
+            ->website()
+            ->pluck('id')
+            ->all();
+
+        $this->assertEqualsCanonicalizing([$websiteSource->id, $legacyWebsiteSource->id], $sourceIds);
+    }
+
     public function test_the_crawl_command_can_target_a_source_by_id(): void
     {
+        $user = User::factory()->create();
+
         $source = Source::query()->create([
+            'user_id' => $user->id,
             'name' => 'Acme Support Center',
             'url' => 'https://example.com/support',
             'domain' => 'example.com',
@@ -74,7 +114,7 @@ class SourceManagementTest extends TestCase
             'documents_upserted' => 2,
         ]);
 
-        $this->mock(SupportSiteCrawler::class, function (MockInterface $mock) use ($source, $run): void {
+        $this->mock(SiteCrawler::class, function (MockInterface $mock) use ($source, $run): void {
             $mock
                 ->shouldReceive('crawlSource')
                 ->once()
@@ -82,7 +122,7 @@ class SourceManagementTest extends TestCase
                 ->andReturn($run);
         });
 
-        $this->artisan('support:crawl', ['source' => (string) $source->id])
+        $this->artisan('knowledge:crawl', ['source' => (string) $source->id, '--user' => (string) $user->id])
             ->expectsOutput("Crawling [{$source->id}] {$source->name}...")
             ->expectsOutput('Completed: 3 pages processed, 2 documents changed.')
             ->assertSuccessful();

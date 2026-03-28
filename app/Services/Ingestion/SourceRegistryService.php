@@ -3,7 +3,8 @@
 namespace App\Services\Ingestion;
 
 use App\Models\Source;
-use App\Support\SupportActivityLog;
+use App\Models\User;
+use App\Support\ActivityLog;
 use Illuminate\Support\Arr;
 
 class SourceRegistryService
@@ -13,15 +14,18 @@ class SourceRegistryService
      *
      * @param  array<string, mixed>  $attributes
      */
-    public function registerWebsiteSource(array $attributes): Source
+    public function registerWebsiteSource(User $user, array $attributes): Source
     {
         $url = $this->normalizeUrl((string) $attributes['url']);
         $domain = parse_url($url, PHP_URL_HOST);
         $source = Source::updateOrCreate(
-            ['url' => $url],
+            [
+                'user_id' => $user->id,
+                'url' => $url,
+            ],
             [
                 'name' => (string) $attributes['name'],
-                'source_type' => (string) ($attributes['source_type'] ?? 'support_site'),
+                'source_type' => (string) ($attributes['source_type'] ?? 'website'),
                 'domain' => is_string($domain) ? strtolower($domain) : null,
                 'content_selector' => Arr::get($attributes, 'content_selector'),
                 'crawl_enabled' => (bool) ($attributes['crawl_enabled'] ?? true),
@@ -30,7 +34,8 @@ class SourceRegistryService
             ],
         );
 
-        SupportActivityLog::info('Support source registered', [
+        ActivityLog::info('Knowledge source registered', [
+            'user_id' => $user->id,
             'source_id' => $source->id,
             'source_name' => $source->name,
             'source_type' => $source->source_type,
@@ -49,12 +54,13 @@ class SourceRegistryService
      *
      * @param  array<string, mixed>  $metadata
      */
-    public function registerUploadedSource(string $name, array $metadata = []): Source
+    public function registerUploadedSource(User $user, string $name, array $metadata = []): Source
     {
         $source = Source::firstOrCreate(
             [
+                'user_id' => $user->id,
                 'name' => $name,
-                'source_type' => 'uploaded_document',
+                'source_type' => 'uploaded_collection',
             ],
             [
                 'crawl_enabled' => false,
@@ -63,7 +69,8 @@ class SourceRegistryService
             ],
         );
 
-        SupportActivityLog::info('Uploaded document source resolved', [
+        ActivityLog::info('Uploaded document source resolved', [
+            'user_id' => $user->id,
             'source_id' => $source->id,
             'source_name' => $source->name,
             'was_created' => $source->wasRecentlyCreated,

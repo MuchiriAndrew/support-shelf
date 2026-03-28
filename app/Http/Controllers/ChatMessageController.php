@@ -2,9 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\GenerateSupportReplyJob;
-use App\Services\Chat\SupportChatService;
-use App\Services\Chat\SupportChatSessionService;
+use App\Jobs\GenerateAssistantReplyJob;
+use App\Services\Chat\AssistantChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,19 +11,18 @@ class ChatMessageController extends Controller
 {
     public function storeNew(
         Request $request,
-        SupportChatSessionService $sessionService,
-        SupportChatService $chatService,
+        AssistantChatService $chatService,
     ): JsonResponse {
         $validated = $request->validate([
             'content' => ['required', 'string', 'min:2', 'max:4000'],
         ]);
 
         $turn = $chatService->startConversationTurn(
-            $sessionService->token($request->session()),
+            $request->user(),
             $validated['content'],
         );
 
-        GenerateSupportReplyJob::dispatch(
+        GenerateAssistantReplyJob::dispatch(
             $turn['conversation']->id,
             $turn['userMessage']->id,
             $turn['assistantMessage']->id,
@@ -40,21 +38,20 @@ class ChatMessageController extends Controller
     public function store(
         Request $request,
         string $conversation,
-        SupportChatSessionService $sessionService,
-        SupportChatService $chatService,
+        AssistantChatService $chatService,
     ): JsonResponse {
         $validated = $request->validate([
             'content' => ['required', 'string', 'min:2', 'max:4000'],
         ]);
 
         $record = $chatService->findConversation(
-            $sessionService->token($request->session()),
+            $request->user(),
             $conversation,
         );
 
         $turn = $chatService->queueConversationTurn($record, $validated['content']);
 
-        GenerateSupportReplyJob::dispatch(
+        GenerateAssistantReplyJob::dispatch(
             $turn['conversation']->id,
             $turn['userMessage']->id,
             $turn['assistantMessage']->id,

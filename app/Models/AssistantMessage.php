@@ -5,8 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SupportMessage extends Model
+class AssistantMessage extends Model
 {
+    protected $table = 'support_messages';
+
     /**
      * @var list<string>
      */
@@ -34,6 +36,6 @@ class SupportMessage extends Model
 
     public function conversation(): BelongsTo
     {
-        return $this->belongsTo(SupportConversation::class, 'conversation_id');
+        return $this->belongsTo(AssistantConversation::class, 'conversation_id');
     }
 }

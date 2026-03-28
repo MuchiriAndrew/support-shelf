@@ -3,29 +3,23 @@
 namespace App\Livewire\Admin;
 
 use App\Jobs\RunSourceCrawlJob;
-use App\Jobs\SyncDocumentVectorsJob;
-use App\Models\Document;
-use App\Models\Source;
+use App\Models\User;
 use App\Services\Documents\DocumentImportService;
 use App\Services\Ingestion\SourceRegistryService;
-use App\Services\Retrieval\SupportVectorIndexService;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Schemas\Concerns\InteractsWithSchemas;
-use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Concerns\InteractsWithSchemas;
+use Filament\Schemas\Contracts\HasSchemas;
 use Filament\Schemas\Schema;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Contracts\View\View;
-use Illuminate\Database\Eloquent\Builder;
-use RuntimeException;
+use Illuminate\Http\UploadedFile;
 use Livewire\Component;
+use RuntimeException;
 
 class IngestionWorkspace extends Component implements HasActions, HasSchemas
 {
@@ -38,73 +32,32 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
 
     public function mount(): void
     {
-        $this->siteForm->fill([
-            'crawl_enabled' => true,
-            'crawl_now' => true,
-            'max_depth' => (int) config('crawling.max_depth', 2),
-            'max_pages' => (int) config('crawling.max_pages', 40),
-        ]);
-
-        $this->documentForm->fill([
-            'document_type' => 'support_text',
-        ]);
+        $this->siteForm->fill();
+        $this->documentForm->fill();
     }
 
     public function siteForm(Schema $schema): Schema
     {
         return $schema
             ->components([
-                Section::make('Register a support site')
-                    ->description('Save a crawlable help center, product support hub, or policy site.')
+                Section::make('Register a website source')
+                    ->description('Save a website and it will be crawled into your private knowledge base automatically.')
                     ->compact()
                     ->schema([
                         Grid::make([
                             'md' => 2,
                         ])->schema([
                             TextInput::make('name')
-                                ->label('Site name')
+                                ->label('Website name')
                                 ->required()
                                 ->maxLength(255)
-                                ->placeholder('Apple AirPods Support'),
+                                ->placeholder('Company docs'),
                             TextInput::make('url')
-                                ->label('Starting URL')
+                                ->label('Website URL')
                                 ->required()
                                 ->url()
                                 ->maxLength(2048)
-                                ->placeholder('https://support.apple.com/airpods'),
-                            TextInput::make('content_selector')
-                                ->label('Preferred content selector')
-                                ->maxLength(255)
-                                ->placeholder('main, article, .content'),
-                            Select::make('status')
-                                ->options([
-                                    'active' => 'Active',
-                                    'paused' => 'Paused',
-                                ])
-                                ->default('active')
-                                ->required(),
-                            TextInput::make('max_depth')
-                                ->label('Max depth')
-                                ->numeric()
-                                ->minValue(0)
-                                ->maxValue(5)
-                                ->required(),
-                            TextInput::make('max_pages')
-                                ->label('Max pages')
-                                ->numeric()
-                                ->minValue(1)
-                                ->maxValue(500)
-                                ->required(),
-                        ]),
-                        Grid::make([
-                            'md' => 2,
-                        ])->schema([
-                            Toggle::make('crawl_enabled')
-                                ->label('Allow recurring crawling')
-                                ->default(true),
-                            Toggle::make('crawl_now')
-                                ->label('Queue a crawl after saving')
-                                ->default(true),
+                                ->placeholder('https://docs.example.com'),
                         ]),
                     ]),
             ])
@@ -115,8 +68,8 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
     {
         return $schema
             ->components([
-                Section::make('Import a support document')
-                    ->description('Upload manuals, policy files, or troubleshooting guides into the support library.')
+                Section::make('Import a knowledge document')
+                    ->description('Upload PDFs, text files, markdown, or HTML into your private knowledge base.')
                     ->compact()
                     ->schema([
                         FileUpload::make('file')
@@ -131,29 +84,10 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
                             ->storeFiles(false)
                             ->previewable(false)
                             ->maxSize(10240),
-                        Grid::make([
-                            'md' => 2,
-                        ])->schema([
-                            TextInput::make('title')
-                                ->label('Title override')
-                                ->maxLength(255)
-                                ->placeholder('Returns policy'),
-                            TextInput::make('source_name')
-                                ->label('Source group')
-                                ->maxLength(255)
-                                ->placeholder('Store policies'),
-                            Select::make('document_type')
-                                ->label('Document type')
-                                ->required()
-                                ->options([
-                                    'support_text' => 'Support text',
-                                    'manual_pdf' => 'Manual PDF',
-                                    'return_policy' => 'Return policy',
-                                    'troubleshooting_guide' => 'Troubleshooting guide',
-                                    'support_markdown' => 'Markdown article',
-                                    'support_page' => 'Support page snapshot',
-                                ]),
-                        ]),
+                        TextInput::make('title')
+                            ->label('Title override')
+                            ->maxLength(255)
+                            ->placeholder('Returns policy'),
                     ]),
             ])
             ->statePath('documentData');
@@ -162,39 +96,29 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
     public function createSource(SourceRegistryService $registry): void
     {
         $data = $this->siteForm->getState();
+        /** @var User $user */
+        $user = auth()->user();
 
-        $metadata = [
-            'max_depth' => (int) $data['max_depth'],
-            'max_pages' => (int) $data['max_pages'],
-        ];
-
-        $source = $registry->registerWebsiteSource([
+        $source = $registry->registerWebsiteSource($user, [
             'name' => $data['name'],
             'url' => $data['url'],
-            'content_selector' => $data['content_selector'] ?: null,
-            'crawl_enabled' => (bool) $data['crawl_enabled'],
-            'status' => $data['status'],
-            'metadata' => $metadata,
-        ]);
-
-        if ($data['crawl_now']) {
-            RunSourceCrawlJob::dispatch($source->id, 'filament');
-        }
-
-        $this->siteForm->fill([
             'crawl_enabled' => true,
-            'crawl_now' => true,
-            'max_depth' => (int) config('crawling.max_depth', 2),
-            'max_pages' => (int) config('crawling.max_pages', 40),
+            'status' => 'active',
+            'metadata' => [
+                // Keep the form simple while still crawling much more broadly than the old shallow defaults.
+                'max_depth' => $this->defaultWebsiteMaxDepth(),
+                'max_pages' => $this->defaultWebsiteMaxPages(),
+            ],
         ]);
 
+        RunSourceCrawlJob::dispatch($source->id, 'filament');
+
+        $this->siteForm->fill();
         $this->dispatch('knowledge-library-refresh');
 
         Notification::make()
-            ->title('Support site saved')
-            ->body($data['crawl_now']
-                ? "{$source->name} was saved and queued for crawling."
-                : "{$source->name} was saved to the ingestion library.")
+            ->title('Website source saved')
+            ->body("{$source->name} was saved and queued for crawling.")
             ->success()
             ->send();
     }
@@ -203,6 +127,8 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
     {
         $data = $this->documentForm->getState();
         $file = $data['file'] ?? null;
+        /** @var User $user */
+        $user = auth()->user();
 
         if (! $file instanceof UploadedFile) {
             Notification::make()
@@ -215,10 +141,8 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
         }
 
         try {
-            $result = $documentImportService->importUploadedFile($file, [
+            $result = $documentImportService->importUploadedFile($user, $file, [
                 'title' => $data['title'] ?: null,
-                'document_type' => $data['document_type'],
-                'source_name' => $data['source_name'] ?: null,
             ]);
         } catch (RuntimeException $exception) {
             Notification::make()
@@ -232,10 +156,7 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
 
         $document = $result['document'];
 
-        $this->documentForm->fill([
-            'document_type' => 'support_text',
-        ]);
-
+        $this->documentForm->fill();
         $this->dispatch('knowledge-library-refresh');
 
         Notification::make()
@@ -245,65 +166,18 @@ class IngestionWorkspace extends Component implements HasActions, HasSchemas
             ->send();
     }
 
-    public function crawlAllEnabledSites(): void
-    {
-        $count = Source::query()
-            ->crawlable()
-            ->pluck('id')
-            ->tap(function ($sourceIds): void {
-                $sourceIds->each(fn (int $sourceId) => RunSourceCrawlJob::dispatch($sourceId, 'filament'));
-            })
-            ->count();
-
-        Notification::make()
-            ->title($count > 0 ? 'Crawls queued' : 'No crawlable sites')
-            ->body($count > 0
-                ? "{$count} support site(s) were queued for ingestion."
-                : 'Add an active crawl-enabled support site to start a crawl.')
-            ->success()
-            ->send();
-    }
-
-    public function syncPendingVectors(SupportVectorIndexService $indexService): void
-    {
-        if (! $indexService->isConfigured()) {
-            Notification::make()
-                ->title('Vector sync unavailable')
-                ->body('Configure OpenAI embeddings and the vector store before training the knowledge base.')
-                ->warning()
-                ->send();
-
-            return;
-        }
-
-        $count = Document::query()
-            ->whereHas('chunks', fn (Builder $query): Builder => $query->whereNull('vector_id'))
-            ->pluck('id')
-            ->tap(function ($documentIds): void {
-                $documentIds->each(fn (int $documentId) => SyncDocumentVectorsJob::dispatch($documentId));
-            })
-            ->count();
-
-        Notification::make()
-            ->title($count > 0 ? 'Vector sync queued' : 'Knowledge base already trained')
-            ->body($count > 0
-                ? "{$count} document(s) were queued for indexing in Weaviate."
-                : 'There are no pending document chunks waiting for vector sync.')
-            ->success()
-            ->send();
-    }
-
     public function render(): View
     {
-        return view('livewire.admin.ingestion-workspace', [
-            'workspaceStats' => [
-                'sites' => Source::query()->count(),
-                'documents' => Document::query()->count(),
-                'pendingVectors' => Document::query()
-                    ->whereHas('chunks', fn (Builder $query): Builder => $query->whereNull('vector_id'))
-                    ->count(),
-                'vectorReady' => app(SupportVectorIndexService::class)->isConfigured(),
-            ],
-        ]);
+        return view('livewire.admin.ingestion-workspace');
+    }
+
+    protected function defaultWebsiteMaxDepth(): int
+    {
+        return max(5, (int) config('crawling.max_depth', 5));
+    }
+
+    protected function defaultWebsiteMaxPages(): int
+    {
+        return max(500, (int) config('crawling.max_pages', 500));
     }
 }

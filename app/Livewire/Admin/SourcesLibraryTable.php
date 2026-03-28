@@ -14,13 +14,9 @@ use Filament\Actions\Contracts\HasActions;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,6 +36,8 @@ class SourcesLibraryTable extends Component implements HasActions, HasSchemas, H
     {
         return $table
             ->query(fn (): Builder => Source::query()
+                ->ownedBy(auth()->user())
+                ->website()
                 ->withCount(['documents', 'crawlRuns', 'documentChunks'])
                 ->withCount([
                     'documentChunks as indexed_chunks_count' => fn (Builder $query): Builder => $query->whereNotNull('vector_id'),
@@ -50,18 +48,15 @@ class SourcesLibraryTable extends Component implements HasActions, HasSchemas, H
                 TextColumn::make('name')
                     ->label('Site')
                     ->searchable()
-                    ->sortable()
-                    ->description(fn (Source $record): ?string => $record->domain ?: $record->url),
-                TextColumn::make('source_type')
-                    ->label('Type')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title()->toString()),
-                IconColumn::make('crawl_enabled')
-                    ->label('Crawl')
-                    ->boolean()
                     ->sortable(),
+                TextColumn::make('url')
+                    ->label('Website URL')
+                    ->searchable()
+                    ->wrap()
+                    ->copyable()
+                    ->toggleable(),
                 TextColumn::make('documents_count')
-                    ->label('Documents')
+                    ->label('Pages crawled')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('indexed_chunks_count')
@@ -87,27 +82,21 @@ class SourcesLibraryTable extends Component implements HasActions, HasSchemas, H
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([
-                SelectFilter::make('status')
-                    ->options([
-                        'active' => 'Active',
-                        'paused' => 'Paused',
-                    ]),
-                SelectFilter::make('source_type')
-                    ->options(fn (): array => Source::query()
-                        ->select('source_type')
-                        ->distinct()
-                        ->orderBy('source_type')
-                        ->pluck('source_type', 'source_type')
-                        ->map(fn (string $state): string => str($state)->replace('_', ' ')->title()->toString())
-                        ->all()),
-                TernaryFilter::make('crawl_enabled')
-                    ->label('Crawl enabled'),
-                Filter::make('indexed')
-                    ->label('Indexed in Weaviate')
-                    ->query(fn (Builder $query): Builder => $query->whereHas('documentChunks', fn (Builder $chunkQuery): Builder => $chunkQuery->whereNotNull('vector_id'))),
-            ])
             ->recordActions([
+                Action::make('view_crawled_pages')
+                    ->label('View crawled pages')
+                    ->icon('heroicon-o-document-duplicate')
+                    ->color('gray')
+                    ->modalHeading(fn (Source $record): string => "{$record->name} pages")
+                    ->modalDescription(fn (Source $record): string => "Showing the subpages currently stored for {$record->url}.")
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->modalContent(fn (Source $record) => view('filament.partials.source-crawled-pages', [
+                        'source' => $record,
+                        'documents' => $record->documents()
+                            ->orderBy('title')
+                            ->get(['id', 'title', 'canonical_url', 'updated_at']),
+                    ])),
                 Action::make('crawl_now')
                     ->label('Crawl now')
                     ->icon('heroicon-o-arrow-path')
@@ -191,8 +180,8 @@ class SourcesLibraryTable extends Component implements HasActions, HasSchemas, H
                         }),
                 ]),
             ])
-            ->emptyStateHeading('No support sites yet')
-            ->emptyStateDescription('Add a crawlable help center or support knowledge site to start building the library.')
+            ->emptyStateHeading('No sources yet')
+            ->emptyStateDescription('Websites you add for crawling will appear here together with the pages stored from each site.')
             ->paginated([10, 25, 50]);
     }
 

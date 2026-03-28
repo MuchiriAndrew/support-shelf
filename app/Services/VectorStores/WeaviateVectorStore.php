@@ -28,29 +28,38 @@ class WeaviateVectorStore implements VectorStore
 
         $this->throwIfFailed($response);
 
-        $classes = collect($response->json('classes', []))
-            ->pluck('class')
-            ->filter(fn (mixed $class): bool => is_string($class))
-            ->all();
+        $classes = collect($response->json('classes', []));
+        $className = $this->className();
+        $schemaProperties = $this->schemaProperties();
+        $existingClass = $classes->first(
+            fn (mixed $class): bool => is_array($class) && ($class['class'] ?? null) === $className
+        );
 
-        if (! in_array($this->className(), $classes, true)) {
+        if (! $existingClass) {
             $createResponse = $this->request()->post('/v1/schema', [
-                'class' => $this->className(),
-                'description' => 'Support document chunks indexed with external OpenAI embeddings.',
+                'class' => $className,
+                'description' => 'Knowledge document chunks indexed with external OpenAI embeddings.',
                 'vectorizer' => 'none',
-                'properties' => [
-                    ['name' => 'chunkId', 'dataType' => ['int']],
-                    ['name' => 'documentId', 'dataType' => ['int']],
-                    ['name' => 'sourceId', 'dataType' => ['int']],
-                    ['name' => 'sourceName', 'dataType' => ['text']],
-                    ['name' => 'documentTitle', 'dataType' => ['text']],
-                    ['name' => 'documentType', 'dataType' => ['text']],
-                    ['name' => 'canonicalUrl', 'dataType' => ['text']],
-                    ['name' => 'content', 'dataType' => ['text']],
-                ],
+                'properties' => array_values($schemaProperties),
             ]);
 
             $this->throwIfFailed($createResponse);
+        } else {
+            $existingProperties = collect($existingClass['properties'] ?? [])
+                ->pluck('name')
+                ->filter(fn (mixed $name): bool => is_string($name))
+                ->values()
+                ->all();
+
+            foreach ($schemaProperties as $propertyName => $propertyDefinition) {
+                if (in_array($propertyName, $existingProperties, true)) {
+                    continue;
+                }
+
+                $createPropertyResponse = $this->request()->post("/v1/schema/{$className}/properties", $propertyDefinition);
+
+                $this->throwIfFailed($createPropertyResponse);
+            }
         }
 
         $this->collectionEnsured = true;
@@ -72,6 +81,7 @@ class WeaviateVectorStore implements VectorStore
                     'properties' => [
                         'chunkId' => $record['chunk_id'],
                         'documentId' => $record['document_id'],
+                        'userId' => $record['user_id'],
                         'sourceId' => $record['source_id'],
                         'sourceName' => $record['source_name'],
                         'documentTitle' => $record['document_title'],
@@ -120,7 +130,7 @@ class WeaviateVectorStore implements VectorStore
         }
     }
 
-    public function search(array $vector, int $limit = 8): array
+    public function search(array $vector, int $limit = 8, array $filters = []): array
     {
         if ($vector === []) {
             return [];
@@ -131,13 +141,15 @@ class WeaviateVectorStore implements VectorStore
         $vectorJson = json_encode(array_values($vector), JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
         $limit = max(1, $limit);
         $className = $this->className();
+        $whereClause = $this->buildWhereClause($filters);
 
         $query = <<<GRAPHQL
         {
           Get {
-            {$className}(nearVector: {vector: {$vectorJson}}, limit: {$limit}) {
+            {$className}(nearVector: {vector: {$vectorJson}}, limit: {$limit}{$whereClause}) {
               chunkId
               documentId
+              userId
               sourceId
               sourceName
               documentTitle
@@ -182,6 +194,7 @@ class WeaviateVectorStore implements VectorStore
                 'vector_id' => data_get($result, '_additional.id'),
                 'chunk_id' => ($chunkId = data_get($result, 'chunkId')) !== null ? (int) $chunkId : null,
                 'document_id' => ($documentId = data_get($result, 'documentId')) !== null ? (int) $documentId : null,
+                'user_id' => ($userId = data_get($result, 'userId')) !== null ? (int) $userId : null,
                 'source_id' => ($sourceId = data_get($result, 'sourceId')) !== null ? (int) $sourceId : null,
                 'document_title' => data_get($result, 'documentTitle'),
                 'document_type' => data_get($result, 'documentType'),
@@ -198,6 +211,38 @@ class WeaviateVectorStore implements VectorStore
         $collection = (string) config('vector-store.stores.weaviate.collection', 'support_chunks');
 
         return Str::studly(str_replace(['-', '.'], '_', $collection));
+    }
+
+    /**
+     * @return array<string, array{name: string, dataType: array<int, string>}>
+     */
+    protected function schemaProperties(): array
+    {
+        return [
+            'chunkId' => ['name' => 'chunkId', 'dataType' => ['int']],
+            'documentId' => ['name' => 'documentId', 'dataType' => ['int']],
+            'userId' => ['name' => 'userId', 'dataType' => ['int']],
+            'sourceId' => ['name' => 'sourceId', 'dataType' => ['int']],
+            'sourceName' => ['name' => 'sourceName', 'dataType' => ['text']],
+            'documentTitle' => ['name' => 'documentTitle', 'dataType' => ['text']],
+            'documentType' => ['name' => 'documentType', 'dataType' => ['text']],
+            'canonicalUrl' => ['name' => 'canonicalUrl', 'dataType' => ['text']],
+            'content' => ['name' => 'content', 'dataType' => ['text']],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    protected function buildWhereClause(array $filters): string
+    {
+        if (isset($filters['user_id']) && is_numeric($filters['user_id'])) {
+            $userId = (int) $filters['user_id'];
+
+            return ", where: {path: [\"userId\"], operator: Equal, valueInt: {$userId}}";
+        }
+
+        return '';
     }
 
     protected function request(): PendingRequest

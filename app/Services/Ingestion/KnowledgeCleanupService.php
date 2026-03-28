@@ -5,7 +5,7 @@ namespace App\Services\Ingestion;
 use App\Jobs\DeleteChunkVectorsJob;
 use App\Models\Document;
 use App\Models\Source;
-use App\Support\SupportActivityLog;
+use App\Support\ActivityLog;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -29,7 +29,7 @@ class KnowledgeCleanupService
             ->all();
         $chunksDeleted = $document->chunks->count();
 
-        SupportActivityLog::info('Knowledge document deletion started', [
+        ActivityLog::info('Knowledge document deletion started', [
             'document_id' => $document->id,
             'document_title' => $document->title,
             'chunks_count' => $chunksDeleted,
@@ -45,7 +45,7 @@ class KnowledgeCleanupService
         $this->deleteStoredFile($storageDisk, $storagePath);
         $this->queueVectorDeletion($vectorIds);
 
-        SupportActivityLog::info('Knowledge document deletion completed', [
+        ActivityLog::info('Knowledge document deletion completed', [
             'document_id' => $document->id,
             'document_title' => $document->title,
             'chunks_deleted' => $chunksDeleted,
@@ -109,7 +109,7 @@ class KnowledgeCleanupService
         $documentsDeleted = $documents->count();
         $chunksDeleted = $documents->sum(fn (Document $document): int => $document->chunks->count());
 
-        SupportActivityLog::info('Knowledge source deletion started', [
+        ActivityLog::info('Knowledge source deletion started', [
             'source_id' => $source->id,
             'source_name' => $source->name,
             'documents_count' => $documentsDeleted,
@@ -132,7 +132,7 @@ class KnowledgeCleanupService
 
         $this->queueVectorDeletion($vectorIds);
 
-        SupportActivityLog::info('Knowledge source deletion completed', [
+        ActivityLog::info('Knowledge source deletion completed', [
             'source_id' => $source->id,
             'source_name' => $source->name,
             'documents_deleted' => $documentsDeleted,

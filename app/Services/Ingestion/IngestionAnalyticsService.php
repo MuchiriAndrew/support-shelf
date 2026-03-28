@@ -6,6 +6,7 @@ use App\Models\CrawlRun;
 use App\Models\Document;
 use App\Models\DocumentChunk;
 use App\Models\Source;
+use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -14,6 +15,13 @@ use Illuminate\Support\Facades\Schema;
 
 class IngestionAnalyticsService
 {
+    protected function currentUser(): ?User
+    {
+        $user = auth()->user();
+
+        return $user instanceof User ? $user : null;
+    }
+
     public function tablesReady(): bool
     {
         return Schema::hasTable('sources')
@@ -47,17 +55,34 @@ class IngestionAnalyticsService
             ];
         }
 
-        $chunkCount = DocumentChunk::query()->count();
-        $indexedChunkCount = DocumentChunk::query()->whereNotNull('vector_id')->count();
+        $user = $this->currentUser();
+
+        if (! $user) {
+            return [
+                'sources' => 0,
+                'crawlable_sources' => 0,
+                'documents' => 0,
+                'chunks' => 0,
+                'indexed_chunks' => 0,
+                'pending_chunks' => 0,
+                'crawl_runs' => 0,
+            ];
+        }
+
+        $chunkCount = DocumentChunk::query()->whereHas('document', fn ($query) => $query->where('user_id', $user->id))->count();
+        $indexedChunkCount = DocumentChunk::query()
+            ->whereNotNull('vector_id')
+            ->whereHas('document', fn ($query) => $query->where('user_id', $user->id))
+            ->count();
 
         return [
-            'sources' => Source::query()->count(),
-            'crawlable_sources' => Source::query()->crawlable()->count(),
-            'documents' => Document::query()->count(),
+            'sources' => Source::query()->ownedBy($user)->count(),
+            'crawlable_sources' => Source::query()->ownedBy($user)->crawlable()->count(),
+            'documents' => Document::query()->ownedBy($user)->count(),
             'chunks' => $chunkCount,
             'indexed_chunks' => $indexedChunkCount,
             'pending_chunks' => max(0, $chunkCount - $indexedChunkCount),
-            'crawl_runs' => CrawlRun::query()->count(),
+            'crawl_runs' => CrawlRun::query()->whereHas('source', fn ($query) => $query->where('user_id', $user->id))->count(),
         ];
     }
 
@@ -75,8 +100,9 @@ class IngestionAnalyticsService
         $window = collect(range($days - 1, 0))
             ->map(fn (int $offset): Carbon => now()->copy()->subDays($offset)->startOfDay())
             ->values();
+        $user = $this->currentUser();
 
-        if (! $this->tablesReady()) {
+        if (! $this->tablesReady() || ! $user) {
             return [
                 'labels' => $window->map(fn (Carbon $day): string => $day->format('M j'))->all(),
                 'crawl_runs' => array_fill(0, $window->count(), 0),
@@ -89,17 +115,19 @@ class IngestionAnalyticsService
             'labels' => $window->map(fn (Carbon $day): string => $day->format('M j'))->all(),
             'crawl_runs' => $this->mapSeries(
                 $window,
-                CrawlRun::query(),
+                CrawlRun::query()->whereHas('source', fn ($query) => $query->where('user_id', $user->id)),
                 'created_at',
             ),
             'documents' => $this->mapSeries(
                 $window,
-                Document::query(),
+                Document::query()->where('user_id', $user->id),
                 'created_at',
             ),
             'indexed_chunks' => $this->mapSeries(
                 $window,
-                DocumentChunk::query()->whereNotNull('vector_id'),
+                DocumentChunk::query()
+                    ->whereNotNull('vector_id')
+                    ->whereHas('document', fn ($query) => $query->where('user_id', $user->id)),
                 'updated_at',
             ),
         ];

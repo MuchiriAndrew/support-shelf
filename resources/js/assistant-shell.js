@@ -83,7 +83,7 @@ document.addEventListener('alpine:init', () => {
     }));
 
     window.Alpine.data('chatShell', (initialState = {}) => ({
-        brand: initialState.brand || { name: 'SupportShelf AI' },
+        brand: initialState.brand || { name: 'SupportShelf' },
         prompts: initialState.prompts || [],
         endpoints: initialState.endpoints || {},
         navigation: initialState.navigation || [],
@@ -94,6 +94,7 @@ document.addEventListener('alpine:init', () => {
         draft: '',
         error: null,
         isSending: false,
+        deletingConversationUuid: null,
         activeChannelName: null,
 
         init() {
@@ -152,6 +153,41 @@ document.addEventListener('alpine:init', () => {
                 window.Alpine.store('chrome').closeMobileMenu();
             } catch (error) {
                 this.error = error.response?.data?.message || 'Could not load that conversation.';
+            }
+        },
+
+        async deleteConversation(uuid) {
+            if (! uuid || this.deletingConversationUuid === uuid) {
+                return;
+            }
+
+            const conversation = this.conversations.find((candidate) => candidate.uuid === uuid);
+            const title = conversation?.title || 'this conversation';
+
+            if (! window.confirm(`Delete ${title}? This cannot be undone.`)) {
+                return;
+            }
+
+            this.error = null;
+            this.deletingConversationUuid = uuid;
+
+            try {
+                await window.axios.delete(this.interpolateEndpoint(this.endpoints.deleteConversation, uuid));
+
+                const wasActive = this.activeConversationUuid === uuid;
+                this.conversations = this.conversations.filter((candidate) => candidate.uuid !== uuid);
+
+                if (wasActive) {
+                    this.startFreshConversation();
+
+                    if (this.conversations[0]?.uuid) {
+                        await this.selectConversation(this.conversations[0].uuid);
+                    }
+                }
+            } catch (error) {
+                this.error = error.response?.data?.message || 'Could not delete that conversation.';
+            } finally {
+                this.deletingConversationUuid = null;
             }
         },
 
@@ -219,12 +255,12 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const channelName = `support-chat.${this.activeConversationUuid}`;
+            const channelName = `assistant-chat.${this.activeConversationUuid}`;
             this.activeChannelName = channelName;
 
             window.Echo.channel(channelName)
-                .stopListening('.support.chat.message.updated')
-                .listen('.support.chat.message.updated', (event) => {
+                .stopListening('.assistant.chat.message.updated')
+                .listen('.assistant.chat.message.updated', (event) => {
                     this.handleRealtimeEvent(event);
                 });
         },
@@ -336,6 +372,10 @@ document.addEventListener('alpine:init', () => {
 
         interpolateEndpoint(template, uuid) {
             return template.replace('__CONVERSATION__', uuid);
+        },
+
+        isDeletingConversation(uuid) {
+            return this.deletingConversationUuid === uuid;
         },
 
         formatMessage(message) {

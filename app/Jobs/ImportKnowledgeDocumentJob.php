@@ -2,11 +2,13 @@
 
 namespace App\Jobs;
 
+use App\Models\User;
 use App\Services\Documents\DocumentImportService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use RuntimeException;
 
-class ImportSupportDocumentJob implements ShouldQueue
+class ImportKnowledgeDocumentJob implements ShouldQueue
 {
     use Queueable;
 
@@ -14,6 +16,7 @@ class ImportSupportDocumentJob implements ShouldQueue
      * @param  array<string, mixed>  $attributes
      */
     public function __construct(
+        public int $userId,
         public string $path,
         public array $attributes = [],
     ) {
@@ -24,6 +27,12 @@ class ImportSupportDocumentJob implements ShouldQueue
      */
     public function handle(DocumentImportService $documentImportService): void
     {
-        $documentImportService->importPath($this->path, $this->attributes);
+        $user = User::query()->find($this->userId);
+
+        if (! $user) {
+            throw new RuntimeException("Cannot import a document because user [{$this->userId}] no longer exists.");
+        }
+
+        $documentImportService->importPath($user, $this->path, $this->attributes);
     }
 }

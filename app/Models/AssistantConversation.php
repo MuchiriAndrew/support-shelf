@@ -2,16 +2,22 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class SupportConversation extends Model
+class AssistantConversation extends Model
 {
+    protected $table = 'support_conversations';
+
     /**
      * @var list<string>
      */
     protected $fillable = [
         'uuid',
+        'user_id',
         'session_token',
         'title',
         'status',
@@ -32,6 +38,11 @@ class SupportConversation extends Model
         ];
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function getRouteKeyName(): string
     {
         return 'uuid';
@@ -39,6 +50,15 @@ class SupportConversation extends Model
 
     public function messages(): HasMany
     {
-        return $this->hasMany(SupportMessage::class, 'conversation_id');
+        return $this->hasMany(AssistantMessage::class, 'conversation_id');
+    }
+
+    public function scopeOwnedBy(Builder $query, Authenticatable|User|int $user): Builder
+    {
+        $userId = $user instanceof Authenticatable || $user instanceof User
+            ? $user->getAuthIdentifier()
+            : $user;
+
+        return $query->where('user_id', $userId);
     }
 }

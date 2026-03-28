@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -15,6 +17,7 @@ class Source extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'user_id',
         'name',
         'source_type',
         'domain',
@@ -40,6 +43,11 @@ class Source extends Model
         ];
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     /**
      * Scope a query to crawl-enabled sources.
      */
@@ -49,6 +57,26 @@ class Source extends Model
             ->where('crawl_enabled', true)
             ->whereNotNull('url')
             ->where('status', 'active');
+    }
+
+    public function scopeOwnedBy(Builder $query, Authenticatable|User|int $user): Builder
+    {
+        $userId = $user instanceof Authenticatable || $user instanceof User
+            ? $user->getAuthIdentifier()
+            : $user;
+
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopeWebsite(Builder $query): Builder
+    {
+        return $query
+            ->whereNotNull('url')
+            ->where(function (Builder $query): void {
+                $query
+                    ->whereIn('source_type', ['website', 'support_site'])
+                    ->orWhereNull('source_type');
+            });
     }
 
     /**
