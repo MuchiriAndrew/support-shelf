@@ -5,7 +5,7 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/supportshelf}"
 ENV_FILE="${ENV_FILE:-.env.production}"
 COMPOSE_FILE="${COMPOSE_FILE:-compose.prod.yaml}"
-HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:18080/api/support/status}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:18080/up}"
 
 cd "$APP_DIR"
 
