@@ -14,6 +14,8 @@ class ManageIngestion extends Page
 
     protected static ?string $title = 'Knowledge Ingestion';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Workspace';
+
     protected static ?string $slug = 'knowledge-ingestion';
 
     protected static ?int $navigationSort = 0;

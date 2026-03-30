@@ -2,6 +2,11 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\AssistantSettings;
+use App\Filament\Pages\KnowledgeLibrary;
+use App\Filament\Pages\ManageIngestion;
+use App\Filament\SuperAdmin\Pages\Dashboard;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -18,25 +23,37 @@ use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
-class AdminPanelProvider extends PanelProvider
+class SuperAdminPanelProvider extends PanelProvider
 {
     public function panel(Panel $panel): Panel
     {
         return $panel
-            ->default()
-            ->id('admin')
-            ->path('admin')
+            ->id('superadmin')
+            ->path('super-admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->brandName(config('assistant.brand.name'))
             ->font('Outfit')
             ->maxContentWidth(Width::Full)
-            // ->sidebarFullyCollapsibleOnDesktop()//collapsible on desktop and expanded on mobile by default
             ->login()
+            ->pages([
+                Dashboard::class,
+                AssistantSettings::class,
+                ManageIngestion::class,
+                KnowledgeLibrary::class,
+            ])
+            ->discoverPages(in: app_path('Filament/SuperAdmin/Pages'), for: 'App\Filament\SuperAdmin\Pages')
+            ->discoverResources(in: app_path('Filament/SuperAdmin/Resources'), for: 'App\Filament\SuperAdmin\Resources')
+            ->discoverWidgets(in: app_path('Filament/SuperAdmin/Widgets'), for: 'App\Filament\SuperAdmin\Widgets')
+            ->plugins([
+                FilamentShieldPlugin::make()
+                    ->navigationGroup('Access Control')
+                    ->navigationSort(50)
+                    ->simpleResourcePermissionView(),
+            ])
             ->navigationItems([
-                NavigationItem::make('Super Admin')
-                    ->icon('heroicon-o-shield-check')
-                    ->visible(fn (): bool => auth()->user()?->isSuperAdmin() ?? false)
-                    ->url(fn (): string => route('filament.superadmin.pages.dashboard'))
+                NavigationItem::make('Open workspace')
+                    ->icon('heroicon-o-squares-2x2')
+                    ->url(fn (): string => route('filament.admin.pages.dashboard'))
                     ->sort(998),
                 NavigationItem::make('Back to website')
                     ->icon('heroicon-o-arrow-uturn-left')
@@ -46,8 +63,6 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Blue,
             ])
-            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
-            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

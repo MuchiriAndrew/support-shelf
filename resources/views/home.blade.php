@@ -21,12 +21,12 @@
 
         <div class="relative z-10 grid items-center gap-10 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.92fr)] xl:gap-13">
             <div class="relative z-10 max-w-4xl">
-                <p class="{{ $kickerClass }}">Private assistant platform</p>
+                <p class="{{ $kickerClass }}">{{ $hero['kicker'] ?? 'Private assistant platform' }}</p>
                 <h1 class="mt-4 max-w-[6.5em] text-[clamp(3rem,7vw,5.9rem)] font-semibold leading-[0.95] tracking-[-0.06em] text-[var(--text-primary)] max-sm:max-w-[9em] max-sm:text-[clamp(2.7rem,13vw,3.8rem)]">
-                    Turn your documents and websites into an assistant that knows your world.
+                    {{ $hero['title'] ?? 'Turn your documents and websites into an assistant that knows your world.' }}
                 </h1>
                 <p class="mt-6 max-w-[42rem] text-[1.08rem] leading-[1.9] text-[var(--text-secondary)] max-sm:text-[0.95rem] max-sm:leading-[1.72]">
-                    SupportShelf gives every user a private workspace for source ingestion, semantic retrieval, and grounded conversations, all wrapped in a polished product experience.
+                    {{ $hero['description'] ?? 'SupportShelf gives every user a private workspace for source ingestion, semantic retrieval, and grounded conversations, all wrapped in a polished product experience.' }}
                 </p>
 
                 <div class="mt-10 flex flex-wrap items-center gap-4">
@@ -195,10 +195,10 @@
             </article>
 
             <article class="relative overflow-hidden rounded-[1.7rem] border border-[color:var(--border-soft)] bg-[radial-gradient(circle_at_top_right,rgba(37,99,235,0.2),transparent_15rem),var(--surface-elevated)] p-5 shadow-[var(--shadow-soft)]">
-                <p class="{{ $panelKickerClass }}">Ready to use it?</p>
-                <h2 class="{{ $sectionHeadingClass }}">Create an assistant, ingest your sources, and start chatting from your own knowledge.</h2>
+                <p class="{{ $panelKickerClass }}">{{ $cta['kicker'] ?? 'Ready to use it?' }}</p>
+                <h2 class="{{ $sectionHeadingClass }}">{{ $cta['title'] ?? 'Create an assistant, ingest your sources, and start chatting from your own knowledge.' }}</h2>
                 <p class="{{ $copyClass }}">
-                    The platform already supports website crawling, document uploads, vector retrieval, realtime chat, and per-user assistant customization.
+                    {{ $cta['description'] ?? 'The platform already supports website crawling, document uploads, vector retrieval, realtime chat, and per-user assistant customization.' }}
                 </p>
 
                 <div class="mt-8 flex flex-wrap gap-4">

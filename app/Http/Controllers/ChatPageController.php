@@ -14,6 +14,17 @@ class ChatPageController extends Controller
         $conversations = $chatService->listConversations($user);
         $activeConversation = $conversations->first();
 
+        $navigation = [
+            ['label' => 'Chat', 'route' => 'chat'],
+            ['label' => 'Overview', 'route' => 'home'],
+            ['label' => 'Knowledge', 'route' => 'filament.admin.pages.knowledge-ingestion'],
+            ['label' => 'My Assistant', 'route' => 'filament.admin.pages.assistant-settings'],
+        ];
+
+        if ($user->isSuperAdmin()) {
+            $navigation[] = ['label' => 'Super Admin', 'route' => 'filament.superadmin.pages.dashboard'];
+        }
+
         return view('chat.index', [
             'realtime' => true,
             'chatState' => [
@@ -33,12 +44,7 @@ class ChatPageController extends Controller
                     'deleteConversation' => route('chat.conversations.destroy', ['conversation' => '__CONVERSATION__']),
                     'sendMessage' => route('chat.messages.store', ['conversation' => '__CONVERSATION__']),
                 ],
-                'navigation' => [
-                    ['label' => 'Chat', 'route' => 'chat'],
-                    ['label' => 'Overview', 'route' => 'home'],
-                    ['label' => 'Ingestion', 'route' => 'filament.admin.pages.knowledge-ingestion'],
-                    ['label' => 'My Assistant', 'route' => 'filament.admin.pages.assistant-settings'],
-                ],
+                'navigation' => $navigation,
                 'brand' => [
                     'name' => $user->assistantDisplayName(),
                 ],

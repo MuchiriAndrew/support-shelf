@@ -14,6 +14,8 @@ class KnowledgeLibrary extends Page
 
     protected static ?string $title = 'Knowledge Library';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Workspace';
+
     protected static ?string $slug = 'knowledge-library';
 
     protected static ?int $navigationSort = 1;

@@ -28,12 +28,13 @@
     $offcanvasClass = 'fixed inset-y-0 right-0 z-50 w-[min(100%,21rem)] overflow-y-auto border-l border-[color:var(--border-soft)] bg-[var(--drawer-bg)] px-5 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] shadow-[var(--shadow-soft)]';
     $offcanvasLinkClass = 'block rounded-2xl border border-transparent px-4 py-3 text-sm font-medium text-[var(--text-primary)] transition hover:border-[color:var(--button-secondary-border)] hover:bg-[var(--button-secondary-bg)]';
     $navigation = auth()->check()
-        ? [
+        ? array_values(array_filter([
             ['label' => 'Overview', 'route' => 'home'],
             ['label' => 'Chat', 'route' => 'chat'],
             ['label' => 'Knowledge', 'route' => 'filament.admin.pages.knowledge-ingestion'],
             ['label' => 'My Assistant', 'route' => 'filament.admin.pages.assistant-settings'],
-        ]
+            auth()->user()?->isSuperAdmin() ? ['label' => 'Super Admin', 'route' => 'filament.superadmin.pages.dashboard'] : null,
+        ]))
         : [
             ['label' => 'Overview', 'route' => 'home'],
             ['label' => 'Login', 'route' => 'login'],
@@ -83,7 +84,7 @@
                             <x-app-emblem />
                         </div>
                         <div>
-                            <p class="text-base font-semibold text-[var(--text-primary)]">Support Shelf</p>
+                            <p class="text-base font-semibold text-[var(--text-primary)]">{{ $brandName }}</p>
                         </div>
                     </a>
 

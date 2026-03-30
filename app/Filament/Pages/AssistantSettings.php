@@ -22,6 +22,8 @@ class AssistantSettings extends Page implements HasForms
 
     protected static ?string $title = 'My Assistant';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Workspace';
+
     protected static ?string $slug = 'assistant-settings';
 
     protected static ?int $navigationSort = 2;

@@ -36,7 +36,7 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect()->route('filament.admin.pages.assistant-settings')
+        return redirect()->route($user->isSuperAdmin() ? 'filament.superadmin.pages.dashboard' : 'filament.admin.pages.assistant-settings')
             ->with('status', 'Your account is ready. Customize your assistant before uploading knowledge.');
     }
 }

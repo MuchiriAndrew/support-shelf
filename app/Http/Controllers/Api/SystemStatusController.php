@@ -60,6 +60,7 @@ class SystemStatusController extends Controller
                 'chat' => route('chat'),
                 'ingestion' => route('filament.admin.pages.knowledge-ingestion'),
                 'assistant_settings' => route('filament.admin.pages.assistant-settings'),
+                'super_admin' => $user->isSuperAdmin() ? route('filament.superadmin.pages.dashboard') : null,
                 'search' => route('knowledge.search'),
             ],
         ]);

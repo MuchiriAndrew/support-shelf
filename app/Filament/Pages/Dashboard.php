@@ -14,6 +14,8 @@ class Dashboard extends BaseDashboard
 
     protected static ?string $title = 'Analytics';
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Workspace';
+
     protected Width|string|null $maxContentWidth = Width::Full;
 
     public function getColumns(): int|array
